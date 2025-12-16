@@ -1,6 +1,6 @@
 {
   // Wrangler configuration for static site hosting
-  "name": "yatzy-scoreboard",
+  "name": "fun-and-games",
   "compatibility_date": "2024-01-01",
   
   // Use the assets feature to serve static files
