@@ -1,0 +1,162 @@
+:root {
+    --primary: #4CAF50;
+    --secondary: #e0e0e0;
+    --danger: #ff5252;
+    --dark: #333;
+    --light: #fff;
+    --border: #ccc;
+    --input-bg: #f9f9f9;
+}
+
+* {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    color: var(--dark);
+}
+
+header {
+    background-color: var(--dark);
+    color: var(--light);
+    padding: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+h1 { margin: 0; font-size: 1.5rem; }
+
+.controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.btn {
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.primary { background-color: var(--primary); color: white; }
+.secondary { background-color: var(--secondary); color: var(--dark); }
+.danger { background-color: var(--danger); color: white; }
+
+/* Table Styling */
+main {
+    padding: 10px;
+    max-width: 100%;
+}
+
+.table-wrapper {
+    overflow-x: auto; /* Horizontal scroll for many players */
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 300px;
+}
+
+th, td {
+    border: 1px solid var(--border);
+    padding: 8px;
+    text-align: center;
+}
+
+/* Category Column */
+.label-col {
+    background-color: #eee;
+    font-weight: bold;
+    text-align: left;
+    min-width: 120px;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    border-right: 2px solid #bbb;
+}
+
+/* Category Icons/Text */
+.cat-icon { font-size: 1.2rem; letter-spacing: 2px; }
+.cat-text { font-size: 0.9rem; }
+
+/* Inputs */
+input[type="number"] {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: center;
+    /* IMPORTANT for iOS: Font size 16px prevents zoom on focus */
+    font-size: 16px; 
+    padding: 5px;
+    color: var(--dark);
+}
+
+input[type="number"]:focus {
+    outline: 2px solid var(--primary);
+    background: #e8f5e9;
+}
+
+/* Read-only rows (Sums/Totals) */
+.row-sum, .row-total, .row-bonus {
+    background-color: #e3f2fd;
+    font-weight: bold;
+}
+
+.row-total td {
+    background-color: #bbdefb;
+    font-size: 1.1rem;
+}
+
+.bonus-active {
+    color: var(--primary);
+}
+
+/* Dialog */
+dialog {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    padding: 20px;
+    width: 80%;
+    max-width: 400px;
+}
+
+dialog::backdrop {
+    background: rgba(0,0,0,0.5);
+}
+
+#new-player-name {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (min-width: 600px) {
+    header { flex-direction: row; justify-content: space-between; }
+}
