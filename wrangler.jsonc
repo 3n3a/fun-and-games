@@ -9,9 +9,6 @@
     "binding": "ASSETS"
   },
   
-  // Main configuration for static assets
-  "main": null,
-  
   // Compatibility flags
   "compatibility_flags": []
 }
