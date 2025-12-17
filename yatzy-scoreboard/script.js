@@ -82,8 +82,8 @@ function calculateTotals(playerIndex) {
     });
     s['sum_upper'] = sumUpper;
 
-    // 2. Bonus (Threshold 63, Reward 50)
-    s['bonus'] = sumUpper >= 63 ? 50 : 0;
+    // 2. Bonus (Threshold 63, Reward 25)
+    s['bonus'] = sumUpper >= 63 ? 25 : 0;
 
     // 3. Total (Sum Upper + Bonus + Lower Section)
     const lowerKeys = [
