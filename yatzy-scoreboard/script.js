@@ -107,7 +107,7 @@ function renderTable() {
     const btnText = document.getElementById('toggle-view-btn');
 
     // Update Button Text
-    btnText.textContent = state.viewMode === 'icon' ? 'Switch to Text' : 'Switch to Icons';
+    btnText.textContent = state.viewMode === 'icon' ? 'Description' : 'Icons';
 
     // 1. Render Header (Players)
     // Clear existing player headers (keep first 'Category' th)
