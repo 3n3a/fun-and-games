@@ -18,7 +18,7 @@ const VALIDATION_RANGES = {
 };
 
 // Configuration for rows
-const APP_VERSION = 'v2.0';
+const APP_VERSION = 'v2.0.1';
 
 const CATEGORIES = [
     { key: 'ones', label: 'Ones', icon: '<i class="fas fa-dice-one"></i>' },
