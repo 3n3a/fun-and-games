@@ -69,15 +69,16 @@ main {
 }
 
 table {
-    width: 100%;
+    width: auto; /* Allow table to expand beyond container */
+    min-width: 100%; /* But take at least full width */
     border-collapse: collapse;
-    min-width: 300px;
 }
 
 th, td {
     border: 1px solid var(--border);
     padding: 8px;
     text-align: center;
+    min-width: 85px; /* Force minimum width to trigger scroll on mobile */
 }
 
 /* Category Column */
