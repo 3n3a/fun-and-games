@@ -47,7 +47,7 @@ let state = {
     // viewMode removed as we now use click-to-show
 };
 
-const STORAGE_KEY = 'yatzy_scoreboard_v1';
+const STORAGE_KEY = 'yatzy_scoreboard_v2';
 
 // --- Initialization ---
 
