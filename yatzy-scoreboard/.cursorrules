@@ -33,6 +33,7 @@
 - Calculated fields: sum_upper, bonus, total
 - Input fields trigger validation on change/blur events
 - CSS Media Queries control layout (break point at 600px)
+- Always increase the version on each commit. Otherwise this will bring caching problems. It does not have to be a major version increase.
 
 ## References
 - Yatzy Rules: https://en.wikipedia.org/wiki/Yatzy
