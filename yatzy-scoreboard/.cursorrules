@@ -1,0 +1,39 @@
+# Yatzy Scoreboard Project Rules
+
+## Project Overview
+- Yatzy scoreboard web application for tracking multiple players' scores
+- Pure HTML/CSS/JavaScript (no frameworks)
+- Uses localStorage for persistence
+- Supports responsive icon view with description
+
+## Key Features
+- Multi-player score tracking
+- Automatic calculation of sums, bonus, and totals
+- **Responsive Category View**:
+  - Icons and descriptions are always visible side-by-side (wrapping if needed)
+  - **Mobile**: Centered alignment
+  - **Desktop**: Left alignment
+- Editable player names
+- Reset functionality
+- Info dialog with version and instructions
+
+## Validation Rules
+- Input validation is implemented for all score categories
+- Validates ranges and step values (multiples) for each category
+- Validation provides user feedback via input styling
+
+## Mobile Optimization
+- Input fields use `inputmode="numeric"` for mobile number keyboard
+- Font size set to 16px to prevent iOS zoom on focus
+- Responsive design with horizontal scroll for many players
+
+## Technical Details
+- State management via localStorage with key 'yatzy_scoreboard_v1'
+- Categories defined in CATEGORIES array with keys, labels, icons, and types
+- Calculated fields: sum_upper, bonus, total
+- Input fields trigger validation on change/blur events
+- CSS Media Queries control layout (break point at 600px)
+
+## References
+- Yatzy Rules: https://en.wikipedia.org/wiki/Yatzy
+- Hosting path: https://fun-and-games.enea.tech/yatzy-scoreboard

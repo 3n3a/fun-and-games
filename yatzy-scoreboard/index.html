@@ -3,15 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yatzy Scoreboard</title>
+    
+    <!-- Primary Meta Tags -->
+    <title>Yatzy Scoreboard - Free Online Score Sheet</title>
+    <meta name="title" content="Yatzy Scoreboard - Free Online Score Sheet" />
+    <meta name="description" content="Track your Yatzy scores effortlessly with this free, mobile-friendly online scoreboard. Supports multiple players, automatic calculations, and works on any device." />
+    <meta name="keywords" content="yatzy, scoreboard, score sheet, online scorekeeper, dice game, multiplayer, free, mobile, calculator" />
+    <meta name="author" content="3n3a" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://fun-and-games.enea.tech/yatzy-scoreboard" />
+    <meta property="og:title" content="Yatzy Scoreboard - Free Online Score Sheet" />
+    <meta property="og:description" content="Track your Yatzy scores effortlessly with this free, mobile-friendly online scoreboard. Supports multiple players, automatic calculations, and works on any device." />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://fun-and-games.enea.tech/yatzy-scoreboard" />
+    <meta property="twitter:title" content="Yatzy Scoreboard - Free Online Score Sheet" />
+    <meta property="twitter:description" content="Track your Yatzy scores effortlessly with this free, mobile-friendly online scoreboard. Supports multiple players, automatic calculations, and works on any device." />
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <header>
-        <h1>Yatzy Board</h1>
+        <h1>Yatzy ScoreBoard</h1>
         <div class="controls">
-            <button id="toggle-view-btn" class="btn secondary">Description</button>
+            <button id="info-btn" class="btn secondary" aria-label="Information"><i class="fas fa-question-circle"></i></button>
             <button id="add-player-btn" class="btn primary">+ Player</button>
             <button id="reset-btn" class="btn danger">Reset Game</button>
         </div>
@@ -38,6 +58,27 @@
             <div class="dialog-actions">
                 <button value="cancel" class="btn secondary">Cancel</button>
                 <button id="confirm-add-player" value="confirm" class="btn primary">Add</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="info-dialog">
+        <form method="dialog">
+            <h3>Yatzy ScoreBoard</h3>
+            <p><strong>Version:</strong> <span id="app-version"></span></p>
+            <p><strong>Creator:</strong> <a href="https://3n3a.ch" target="_blank">3n3a</a></p>
+            
+            <h4>Instructions</h4>
+            <ul>
+                <li>Click on category icons to show/hide descriptions.</li>
+                <li>Enter scores in the columns.</li>
+                <li>Scores are validated automatically.</li>
+            </ul>
+            
+            <p><a href="https://en.wikipedia.org/wiki/Yatzy" target="_blank">Yatzy Rules (Wikipedia)</a></p>
+
+            <div class="dialog-actions">
+                <button value="close" class="btn primary">Close</button>
             </div>
         </form>
     </dialog>

@@ -86,6 +86,7 @@ th, td {
     font-weight: bold;
     text-align: left;
     min-width: 120px;
+    max-width: 20rem; /* Limit width */
     position: sticky;
     left: 0;
     z-index: 10;
@@ -93,8 +94,27 @@ th, td {
 }
 
 /* Category Icons/Text */
-.cat-icon { font-size: 1.2rem; letter-spacing: 2px; }
-.cat-text { font-size: 0.9rem; }
+.label-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center; /* Centered vertically in row */
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.cat-icon { 
+    font-size: 1.2rem; 
+    letter-spacing: 2px;
+}
+
+.cat-desc {
+    display: block; /* Always visible */
+    font-size: 0.75rem;
+    color: #555;
+    font-weight: normal;
+    text-align: center;
+}
 
 /* Inputs */
 input[type="number"] {
@@ -111,6 +131,17 @@ input[type="number"] {
 input[type="number"]:focus {
     outline: 2px solid var(--primary);
     background: #e8f5e9;
+}
+
+input[type="number"].invalid-input {
+    background: #ffebee;
+    outline: 2px solid var(--danger);
+    color: var(--danger);
+}
+
+input[type="number"].invalid-input:focus {
+    background: #ffcdd2;
+    outline: 2px solid var(--danger);
 }
 
 /* Read-only rows (Sums/Totals) */
@@ -159,4 +190,12 @@ dialog::backdrop {
 
 @media (min-width: 600px) {
     header { flex-direction: row; justify-content: space-between; }
+
+    .label-col {
+        width: 20rem;
+    }
+
+    .cat-desc {
+        text-align: left;
+    }
 }
