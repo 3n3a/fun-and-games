@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -10,261 +9,260 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-–bg: #0a0a0a;
-–surface: #141414;
-–border: #2a2a2a;
-–accent: #e8ff4d;
-–text: #f0f0f0;
-–muted: #666;
-}
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #2a2a2a;
+    --accent: #e8ff4d;
+    --text: #f0f0f0;
+    --muted: #666;
+  }
 
-body {
-background: var(–bg);
-color: var(–text);
-font-family: ‘DM Mono’, monospace;
-min-height: 100dvh;
-display: flex;
-flex-direction: column;
-}
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
 
-header {
-padding: 1rem 1.5rem;
-display: flex;
-align-items: center;
-justify-content: space-between;
-border-bottom: 1px solid var(–border);
-flex-shrink: 0;
-}
+  header {
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
 
-.logo {
-font-family: ‘Syne’, sans-serif;
-font-weight: 800;
-font-size: 1.1rem;
-letter-spacing: -0.02em;
-}
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+  }
 
-.logo span { color: var(–accent); }
+  .logo span { color: var(--accent); }
 
-.config-btn {
-background: none;
-border: 1px solid var(–border);
-color: var(–muted);
-font-family: ‘DM Mono’, monospace;
-font-size: 0.75rem;
-padding: 0.4rem 0.8rem;
-cursor: pointer;
-transition: all 0.2s;
-letter-spacing: 0.05em;
-}
+  .config-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.05em;
+  }
 
-.config-btn:hover {
-border-color: var(–accent);
-color: var(–accent);
-}
+  .config-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 
-/* Config panel */
-.config-panel {
-background: var(–surface);
-border-bottom: 1px solid var(–border);
-padding: 1.25rem 1.5rem;
-display: none;
-gap: 1rem;
-flex-direction: column;
-}
+  /* Config panel */
+  .config-panel {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 1.5rem;
+    display: none;
+    gap: 1rem;
+    flex-direction: column;
+  }
 
-.config-panel.open { display: flex; }
+  .config-panel.open { display: flex; }
 
-.config-row {
-display: grid;
-grid-template-columns: 1fr 1fr;
-gap: 0.75rem;
-}
+  .config-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
 
-@media (max-width: 600px) {
-.config-row { grid-template-columns: 1fr; }
-}
+  @media (max-width: 600px) {
+    .config-row { grid-template-columns: 1fr; }
+  }
 
-.input-group {
-display: flex;
-flex-direction: column;
-gap: 0.3rem;
-}
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
 
-.input-group label {
-font-size: 0.65rem;
-color: var(–muted);
-letter-spacing: 0.1em;
-text-transform: uppercase;
-}
+  .input-group label {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
 
-.input-group input {
-background: var(–bg);
-border: 1px solid var(–border);
-color: var(–text);
-font-family: ‘DM Mono’, monospace;
-font-size: 0.8rem;
-padding: 0.5rem 0.75rem;
-outline: none;
-transition: border-color 0.2s;
-width: 100%;
-}
+  .input-group input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
 
-.input-group input:focus { border-color: var(–accent); }
+  .input-group input:focus { border-color: var(--accent); }
 
-.apply-btn {
-background: var(–accent);
-border: none;
-color: #000;
-font-family: ‘Syne’, sans-serif;
-font-weight: 700;
-font-size: 0.85rem;
-padding: 0.6rem 1.5rem;
-cursor: pointer;
-align-self: flex-start;
-letter-spacing: 0.02em;
-transition: opacity 0.2s;
-}
+  .apply-btn {
+    background: var(--accent);
+    border: none;
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 0.6rem 1.5rem;
+    cursor: pointer;
+    align-self: flex-start;
+    letter-spacing: 0.02em;
+    transition: opacity 0.2s;
+  }
 
-.apply-btn:hover { opacity: 0.85; }
+  .apply-btn:hover { opacity: 0.85; }
 
-/* Main comparison area */
-main {
-flex: 1;
-display: flex;
-align-items: center;
-justify-content: center;
-padding: 1.5rem;
-min-height: 0;
-}
+  /* Main comparison area */
+  main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    min-height: 0;
+  }
 
-.compare-wrap {
-position: relative;
-width: 100%;
-max-width: 1200px;
-aspect-ratio: 16/9;
-overflow: hidden;
-cursor: ew-resize;
-user-select: none;
-background: var(–surface);
-border: 1px solid var(–border);
-}
+  .compare-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 1200px;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    cursor: ew-resize;
+    user-select: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
 
-@media (max-width: 600px) {
-.compare-wrap { aspect-ratio: 4/3; }
-}
+  @media (max-width: 600px) {
+    .compare-wrap { aspect-ratio: 4/3; }
+  }
 
-.img-base, .img-overlay {
-position: absolute;
-inset: 0;
-width: 100%;
-height: 100%;
-}
+  .img-base, .img-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
 
-.img-base img, .img-overlay img {
-width: 100%;
-height: 100%;
-object-fit: contain;
-display: block;
-}
+  .img-base img, .img-overlay img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
 
-.img-overlay {
-clip-path: inset(0 50% 0 0);
-transition: clip-path 0s;
-}
+  .img-overlay {
+    clip-path: inset(0 50% 0 0);
+    transition: clip-path 0s;
+  }
 
-/* Divider */
-.divider {
-position: absolute;
-top: 0;
-bottom: 0;
-width: 2px;
-background: var(–accent);
-left: 50%;
-transform: translateX(-50%);
-pointer-events: none;
-z-index: 10;
-}
+  /* Divider */
+  .divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--accent);
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 10;
+  }
 
-.divider-handle {
-position: absolute;
-top: 50%;
-left: 50%;
-transform: translate(-50%, -50%);
-width: 44px;
-height: 44px;
-background: var(–accent);
-border-radius: 50%;
-display: flex;
-align-items: center;
-justify-content: center;
-pointer-events: none;
-}
+  .divider-handle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px;
+    height: 44px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
 
-.divider-handle svg { width: 20px; height: 20px; }
+  .divider-handle svg { width: 20px; height: 20px; }
 
-/* Labels */
-.label {
-position: absolute;
-top: 1rem;
-background: rgba(0,0,0,0.75);
-backdrop-filter: blur(4px);
-color: var(–text);
-font-size: 0.7rem;
-letter-spacing: 0.08em;
-padding: 0.3rem 0.6rem;
-pointer-events: none;
-z-index: 5;
-max-width: 40%;
-overflow: hidden;
-text-overflow: ellipsis;
-white-space: nowrap;
-}
+  /* Labels */
+  .label {
+    position: absolute;
+    top: 1rem;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
+    color: var(--text);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    padding: 0.3rem 0.6rem;
+    pointer-events: none;
+    z-index: 5;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-.label-a { left: 1rem; }
-.label-b { right: 1rem; text-align: right; }
+  .label-a { left: 1rem; }
+  .label-b { right: 1rem; text-align: right; }
 
-/* Empty state */
-.empty-state {
-position: absolute;
-inset: 0;
-display: flex;
-flex-direction: column;
-align-items: center;
-justify-content: center;
-gap: 0.75rem;
-color: var(–muted);
-font-size: 0.85rem;
-text-align: center;
-padding: 2rem;
-}
+  /* Empty state */
+  .empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 2rem;
+  }
 
-.empty-state .big {
-font-family: ‘Syne’, sans-serif;
-font-size: 1.5rem;
-font-weight: 800;
-color: var(–border);
-letter-spacing: -0.02em;
-}
+  .empty-state .big {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--border);
+    letter-spacing: -0.02em;
+  }
 
-/* Loading */
-.loading-indicator {
-position: absolute;
-inset: 0;
-display: flex;
-align-items: center;
-justify-content: center;
-background: var(–surface);
-z-index: 20;
-font-size: 0.75rem;
-color: var(–muted);
-letter-spacing: 0.1em;
-}
+  /* Loading */
+  .loading-indicator {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    z-index: 20;
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
 
-@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
-.loading-indicator { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+  .loading-indicator { animation: pulse 1.5s infinite; }
 </style>
-
 </head>
 <body>
 
@@ -294,26 +292,23 @@ letter-spacing: 0.1em;
       <div>Open ⚙ Configure and enter two image URLs<br>or pass <code>?a=URL&b=URL</code> in the address bar</div>
     </div>
 
-```
-<div class="img-base" id="imgBase" style="display:none">
-  <img id="imgA" alt="Image A" draggable="false">
-</div>
-<div class="img-overlay" id="imgOverlay" style="display:none">
-  <img id="imgB" alt="Image B" draggable="false">
-</div>
+    <div class="img-base" id="imgBase" style="display:none">
+      <img id="imgA" alt="Image A" draggable="false">
+    </div>
+    <div class="img-overlay" id="imgOverlay" style="display:none">
+      <img id="imgB" alt="Image B" draggable="false">
+    </div>
 
-<div class="divider" id="divider" style="display:none">
-  <div class="divider-handle">
-    <svg viewBox="0 0 20 20" fill="none">
-      <path d="M7 4L3 10L7 16M13 4L17 10L13 16" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </div>
-</div>
+    <div class="divider" id="divider" style="display:none">
+      <div class="divider-handle">
+        <svg viewBox="0 0 20 20" fill="none">
+          <path d="M7 4L3 10L7 16M13 4L17 10L13 16" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
 
-<div class="label label-a" id="labelA" style="display:none">A</div>
-<div class="label label-b" id="labelB" style="display:none">B</div>
-```
-
+    <div class="label label-a" id="labelA" style="display:none">A</div>
+    <div class="label label-b" id="labelB" style="display:none">B</div>
   </div>
 </main>
 
@@ -399,6 +394,5 @@ letter-spacing: 0.1em;
 
   init();
 </script>
-
 </body>
 </html>
