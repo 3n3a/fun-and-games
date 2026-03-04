@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Currency Denominations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #f0c040;
+    --accent2: #e07a30;
+    --text: #f0ede8;
+    --muted: #888;
+    --coin: #c8a940;
+    --note: #4a7c59;
+  }
+
+- { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+background: var(–bg);
+color: var(–text);
+font-family: 'DM Sans', sans-serif;
+min-height: 100vh;
+overflow-x: hidden;
+}
+
+/* ── Background ── */
+body::before {
+content: '';
+position: fixed;
+inset: 0;
+background:
+radial-gradient(ellipse 60% 40% at 20% 10%, rgba(240,192,64,.07) 0%, transparent 60%),
+radial-gradient(ellipse 50% 50% at 80% 90%, rgba(224,122,48,.05) 0%, transparent 60%);
+pointer-events: none;
+z-index: 0;
+}
+
+/* ── Header ── */
+header {
+position: relative;
+z-index: 10;
+padding: 48px 48px 0;
+display: flex;
+align-items: flex-end;
+justify-content: space-between;
+flex-wrap: wrap;
+gap: 24px;
+}
+
+.logo {
+font-family: 'Bebas Neue', sans-serif;
+font-size: clamp(40px, 6vw, 72px);
+letter-spacing: 2px;
+line-height: 1;
+color: var(–accent);
+text-shadow: 0 0 60px rgba(240,192,64,.25);
+}
+
+.logo span {
+color: var(–text);
+opacity: .4;
+font-size: .55em;
+display: block;
+letter-spacing: 5px;
+font-family: 'DM Mono', monospace;
+font-weight: 300;
+}
+
+/* ── Rate badge ── */
+#rate-badge {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 8px;
+padding: 12px 20px;
+font-family: 'DM Mono', monospace;
+font-size: 13px;
+color: var(–muted);
+transition: all .3s;
+}
+#rate-badge strong { color: var(–accent); font-size: 16px; }
+#rate-badge .rate-date { display: block; font-size: 10px; margin-top: 2px; opacity: .6; }
+
+/* ── Controls ── */
+.controls {
+position: relative;
+z-index: 10;
+padding: 36px 48px 0;
+display: flex;
+gap: 16px;
+flex-wrap: wrap;
+align-items: center;
+}
+
+.select-wrap {
+position: relative;
+}
+
+.select-wrap::after {
+content: '▾';
+position: absolute;
+right: 14px;
+top: 50%;
+transform: translateY(-50%);
+color: var(–accent);
+pointer-events: none;
+font-size: 12px;
+}
+
+select {
+appearance: none;
+background: var(–surface);
+border: 1px solid var(–border);
+color: var(–text);
+font-family: 'DM Mono', monospace;
+font-size: 14px;
+padding: 12px 40px 12px 16px;
+border-radius: 8px;
+cursor: pointer;
+transition: border-color .2s;
+min-width: 200px;
+}
+select:hover { border-color: var(–accent); }
+select:focus { outline: none; border-color: var(–accent); }
+
+.target-label {
+font-size: 13px;
+color: var(–muted);
+font-family: 'DM Mono', monospace;
+}
+
+/* ── Main grid ── */
+main {
+position: relative;
+z-index: 10;
+padding: 40px 48px 80px;
+}
+
+.section-title {
+font-family: 'Bebas Neue', sans-serif;
+font-size: 13px;
+letter-spacing: 4px;
+color: var(–muted);
+margin-bottom: 16px;
+display: flex;
+align-items: center;
+gap: 12px;
+}
+.section-title::after {
+content: '';
+flex: 1;
+height: 1px;
+background: var(–border);
+}
+
+.section-spacer { margin-bottom: 40px; }
+
+/* ── Denomination cards ── */
+.denom-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+gap: 16px;
+margin-bottom: 16px;
+}
+
+.denom-card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 12px;
+padding: 20px 24px;
+display: flex;
+align-items: center;
+gap: 20px;
+transition: transform .2s, border-color .2s, box-shadow .2s;
+cursor: default;
+animation: fadeUp .4s both;
+}
+
+.denom-card:hover {
+transform: translateY(-2px);
+border-color: var(–accent);
+box-shadow: 0 8px 32px rgba(240,192,64,.08);
+}
+
+@keyframes fadeUp {
+from { opacity: 0; transform: translateY(16px); }
+to   { opacity: 1; transform: translateY(0); }
+}
+
+.denom-icon {
+width: 56px;
+height: 56px;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 22px;
+flex-shrink: 0;
+position: relative;
+overflow: hidden;
+}
+
+.denom-icon.coin {
+background: radial-gradient(circle at 35% 35%, #e8c860, #a07820);
+box-shadow: 0 4px 12px rgba(160,120,32,.4), inset 0 1px 2px rgba(255,255,255,.3);
+}
+
+.denom-icon.note {
+background: linear-gradient(135deg, #2a5c3a, #1a3c28);
+box-shadow: 0 4px 12px rgba(26,60,40,.5);
+border-radius: 8px;
+}
+
+.denom-icon.note::after {
+content: '';
+position: absolute;
+inset: 3px;
+border: 1px solid rgba(255,255,255,.1);
+border-radius: 6px;
+}
+
+.denom-info { flex: 1; min-width: 0; }
+
+.denom-value {
+font-family: 'Bebas Neue', sans-serif;
+font-size: 28px;
+letter-spacing: 1px;
+color: var(–text);
+line-height: 1;
+}
+
+.denom-name {
+font-size: 11px;
+color: var(–muted);
+margin-top: 3px;
+letter-spacing: .5px;
+}
+
+.denom-type-badge {
+font-size: 9px;
+font-family: 'DM Mono', monospace;
+padding: 2px 6px;
+border-radius: 3px;
+letter-spacing: 1px;
+text-transform: uppercase;
+display: inline-block;
+margin-top: 6px;
+}
+.denom-type-badge.coin { background: rgba(200,169,64,.15); color: var(–coin); }
+.denom-type-badge.note { background: rgba(74,124,89,.2); color: #7bc48e; }
+
+.denom-converted {
+text-align: right;
+flex-shrink: 0;
+}
+
+.converted-amount {
+font-family: 'Bebas Neue', sans-serif;
+font-size: 22px;
+color: var(–accent);
+letter-spacing: .5px;
+line-height: 1;
+}
+
+.converted-currency {
+font-family: 'DM Mono', monospace;
+font-size: 10px;
+color: var(–muted);
+margin-top: 3px;
+}
+
+/* ── Loading / error ── */
+.state-msg {
+font-family: 'DM Mono', monospace;
+font-size: 13px;
+color: var(–muted);
+padding: 60px 0;
+text-align: center;
+}
+
+.spinner {
+display: inline-block;
+width: 18px; height: 18px;
+border: 2px solid var(–border);
+border-top-color: var(–accent);
+border-radius: 50%;
+animation: spin .7s linear infinite;
+vertical-align: middle;
+margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error { color: #e05050; }
+
+/* ── Legend ── */
+.legend {
+display: flex;
+gap: 24px;
+margin-bottom: 24px;
+flex-wrap: wrap;
+}
+.legend-item {
+display: flex;
+align-items: center;
+gap: 8px;
+font-size: 12px;
+color: var(–muted);
+font-family: 'DM Mono', monospace;
+}
+.legend-dot {
+width: 12px; height: 12px;
+border-radius: 50%;
+}
+.legend-dot.coin { background: var(–coin); }
+.legend-dot.note { background: #7bc48e; border-radius: 2px; }
+
+/* ── Footer note ── */
+.footnote {
+margin-top: 48px;
+padding-top: 24px;
+border-top: 1px solid var(–border);
+font-family: 'DM Mono', monospace;
+font-size: 11px;
+color: var(–muted);
+line-height: 1.7;
+}
+.footnote a { color: var(–accent); text-decoration: none; }
+
+@media (max-width: 600px) {
+header, .controls, main { padding-left: 20px; padding-right: 20px; }
+.denom-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    Denominations
+    <span>// CURRENCY EXPLORER</span>
+  </div>
+  <div id="rate-badge">
+    <span class="rate-label">Exchange Rate</span><br>
+    <strong id="rate-val">—</strong>
+    <span class="rate-date" id="rate-date"></span>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="select-wrap">
+    <select id="from-currency">
+      <option value="">Select currency…</option>
+    </select>
+  </div>
+  <span class="target-label">→ converted to CHF</span>
+</div>
+
+<main>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot coin"></div> Coin</div>
+    <div class="legend-item"><div class="legend-dot note"></div> Banknote</div>
+  </div>
+  <div id="content"><div class="state-msg">Choose a currency above to see its denominations.</div></div>
+  <div class="footnote">
+    Live exchange rates via <a href="https://frankfurter.dev" target="_blank">Frankfurter API</a> (ECB data) · Denomination data sourced from official central bank documentation · Target currency: Swiss Franc (CHF)
+  </div>
+</main>
+
+<script>
+// ── Denomination database ──────────────────────────────────────────────────
+// Types: 'coin' | 'note'
+const DENOMINATIONS = {
+  JPY: {
+    name: 'Japanese Yen',
+    symbol: '¥',
+    flag: '🇯🇵',
+    denominations: [
+      { value: 1,     type: 'coin', label: '1 Yen',       desc: 'Aluminium' },
+      { value: 5,     type: 'coin', label: '5 Yen',       desc: 'Brass (holed)' },
+      { value: 10,    type: 'coin', label: '10 Yen',      desc: 'Bronze' },
+      { value: 50,    type: 'coin', label: '50 Yen',      desc: 'Cupro-nickel (holed)' },
+      { value: 100,   type: 'coin', label: '100 Yen',     desc: 'Cupro-nickel' },
+      { value: 500,   type: 'coin', label: '500 Yen',     desc: 'Bi-metallic' },
+      { value: 1000,  type: 'note', label: '1,000 Yen',   desc: 'Banknote · Noguchi Hideyo' },
+      { value: 5000,  type: 'note', label: '5,000 Yen',   desc: 'Banknote · Higuchi Ichiyo' },
+      { value: 10000, type: 'note', label: '10,000 Yen',  desc: 'Banknote · Fukuzawa Yukichi' },
+    ]
+  },
+  USD: {
+    name: 'US Dollar',
+    symbol: '$',
+    flag: '🇺🇸',
+    denominations: [
+      { value: 0.01,  type: 'coin', label: '1¢ Penny',    desc: 'Copper-plated zinc' },
+      { value: 0.05,  type: 'coin', label: '5¢ Nickel',   desc: 'Cupro-nickel' },
+      { value: 0.10,  type: 'coin', label: '10¢ Dime',    desc: 'Cupro-nickel' },
+      { value: 0.25,  type: 'coin', label: '25¢ Quarter', desc: 'Cupro-nickel' },
+      { value: 0.50,  type: 'coin', label: '50¢ Half',    desc: 'Cupro-nickel' },
+      { value: 1,     type: 'coin', label: '$1 Dollar',   desc: 'Manganese-brass' },
+      { value: 1,     type: 'note', label: '$1 Bill',     desc: 'Banknote · George Washington' },
+      { value: 2,     type: 'note', label: '$2 Bill',     desc: 'Banknote · Thomas Jefferson' },
+      { value: 5,     type: 'note', label: '$5 Bill',     desc: 'Banknote · Abraham Lincoln' },
+      { value: 10,    type: 'note', label: '$10 Bill',    desc: 'Banknote · Alexander Hamilton' },
+      { value: 20,    type: 'note', label: '$20 Bill',    desc: 'Banknote · Andrew Jackson' },
+      { value: 50,    type: 'note', label: '$50 Bill',    desc: 'Banknote · Ulysses S. Grant' },
+      { value: 100,   type: 'note', label: '$100 Bill',   desc: 'Banknote · Benjamin Franklin' },
+    ]
+  },
+  EUR: {
+    name: 'Euro',
+    symbol: '€',
+    flag: '🇪🇺',
+    denominations: [
+      { value: 0.01, type: 'coin', label: '1 Cent',    desc: 'Copper-plated steel' },
+      { value: 0.02, type: 'coin', label: '2 Cent',    desc: 'Copper-plated steel' },
+      { value: 0.05, type: 'coin', label: '5 Cent',    desc: 'Copper-plated steel' },
+      { value: 0.10, type: 'coin', label: '10 Cent',   desc: 'Nordic gold' },
+      { value: 0.20, type: 'coin', label: '20 Cent',   desc: 'Nordic gold' },
+      { value: 0.50, type: 'coin', label: '50 Cent',   desc: 'Nordic gold' },
+      { value: 1,    type: 'coin', label: '1 Euro',    desc: 'Bi-metallic' },
+      { value: 2,    type: 'coin', label: '2 Euro',    desc: 'Bi-metallic' },
+      { value: 5,    type: 'note', label: '€5',        desc: 'Banknote · Classical era' },
+      { value: 10,   type: 'note', label: '€10',       desc: 'Banknote · Romanesque era' },
+      { value: 20,   type: 'note', label: '€20',       desc: 'Banknote · Gothic era' },
+      { value: 50,   type: 'note', label: '€50',       desc: 'Banknote · Renaissance era' },
+      { value: 100,  type: 'note', label: '€100',      desc: 'Banknote · Baroque era' },
+      { value: 200,  type: 'note', label: '€200',      desc: 'Banknote · Art Nouveau era' },
+      { value: 500,  type: 'note', label: '€500',      desc: 'Banknote · Modern era' },
+    ]
+  },
+  GBP: {
+    name: 'British Pound',
+    symbol: '£',
+    flag: '🇬🇧',
+    denominations: [
+      { value: 0.01, type: 'coin', label: '1p Penny',       desc: 'Copper-plated steel' },
+      { value: 0.02, type: 'coin', label: '2p Two Pence',   desc: 'Copper-plated steel' },
+      { value: 0.05, type: 'coin', label: '5p Five Pence',  desc: 'Nickel-plated steel' },
+      { value: 0.10, type: 'coin', label: '10p Ten Pence',  desc: 'Nickel-plated steel' },
+      { value: 0.20, type: 'coin', label: '20p Twenty',     desc: 'Nickel-plated steel' },
+      { value: 0.50, type: 'coin', label: '50p Fifty',      desc: 'Nickel-plated steel' },
+      { value: 1,    type: 'coin', label: '£1 One Pound',   desc: 'Bi-metallic 12-sided' },
+      { value: 2,    type: 'coin', label: '£2 Two Pound',   desc: 'Bi-metallic' },
+      { value: 5,    type: 'note', label: '£5 Note',        desc: 'Polymer · Winston Churchill' },
+      { value: 10,   type: 'note', label: '£10 Note',       desc: 'Polymer · Jane Austen' },
+      { value: 20,   type: 'note', label: '£20 Note',       desc: 'Polymer · J. M. W. Turner' },
+      { value: 50,   type: 'note', label: '£50 Note',       desc: 'Polymer · Alan Turing' },
+    ]
+  },
+  CHF: {
+    name: 'Swiss Franc',
+    symbol: 'Fr.',
+    flag: '🇨🇭',
+    denominations: [
+      { value: 0.05, type: 'coin', label: '5 Rappen',    desc: 'Aluminium-bronze' },
+      { value: 0.10, type: 'coin', label: '10 Rappen',   desc: 'Cupro-nickel' },
+      { value: 0.20, type: 'coin', label: '20 Rappen',   desc: 'Cupro-nickel' },
+      { value: 0.50, type: 'coin', label: '½ Franc',     desc: 'Cupro-nickel' },
+      { value: 1,    type: 'coin', label: '1 Franc',     desc: 'Cupro-nickel' },
+      { value: 2,    type: 'coin', label: '2 Francs',    desc: 'Cupro-nickel' },
+      { value: 5,    type: 'coin', label: '5 Francs',    desc: 'Cupro-nickel' },
+      { value: 10,   type: 'note', label: 'Fr. 10',      desc: 'Banknote · Le Corbusier' },
+      { value: 20,   type: 'note', label: 'Fr. 20',      desc: 'Banknote · Arthur Honegger' },
+      { value: 50,   type: 'note', label: 'Fr. 50',      desc: 'Banknote · Sophie Taeuber-Arp' },
+      { value: 100,  type: 'note', label: 'Fr. 100',     desc: 'Banknote · Alberto Giacometti' },
+      { value: 200,  type: 'note', label: 'Fr. 200',     desc: 'Banknote · Charles Ferdinand Ramuz' },
+      { value: 1000, type: 'note', label: 'Fr. 1000',    desc: 'Banknote · Jacob Burckhardt' },
+    ]
+  },
+  CNY: {
+    name: 'Chinese Yuan',
+    symbol: '¥',
+    flag: '🇨🇳',
+    denominations: [
+      { value: 0.01, type: 'coin', label: '1 Fen',      desc: 'Aluminium' },
+      { value: 0.05, type: 'coin', label: '5 Fen',      desc: 'Aluminium' },
+      { value: 0.10, type: 'coin', label: '1 Jiao',     desc: 'Stainless steel' },
+      { value: 0.50, type: 'coin', label: '5 Jiao',     desc: 'Brass-plated steel' },
+      { value: 1,    type: 'coin', label: '1 Yuan',     desc: 'Nickel-plated steel' },
+      { value: 0.10, type: 'note', label: '1 Jiao',     desc: 'Banknote · Series 5' },
+      { value: 0.50, type: 'note', label: '5 Jiao',     desc: 'Banknote · Series 5' },
+      { value: 1,    type: 'note', label: '1 Yuan',     desc: 'Banknote · Series 5' },
+      { value: 5,    type: 'note', label: '5 Yuan',     desc: 'Banknote · Series 5' },
+      { value: 10,   type: 'note', label: '10 Yuan',    desc: 'Banknote · Series 5' },
+      { value: 20,   type: 'note', label: '20 Yuan',    desc: 'Banknote · Series 5' },
+      { value: 50,   type: 'note', label: '50 Yuan',    desc: 'Banknote · Series 5' },
+      { value: 100,  type: 'note', label: '100 Yuan',   desc: 'Banknote · Great Hall of the People' },
+    ]
+  },
+  INR: {
+    name: 'Indian Rupee',
+    symbol: '₹',
+    flag: '🇮🇳',
+    denominations: [
+      { value: 0.50, type: 'coin', label: '50 Paise',    desc: 'Stainless steel' },
+      { value: 1,    type: 'coin', label: '₹1',          desc: 'Stainless steel' },
+      { value: 2,    type: 'coin', label: '₹2',          desc: 'Stainless steel' },
+      { value: 5,    type: 'coin', label: '₹5',          desc: 'Stainless steel' },
+      { value: 10,   type: 'coin', label: '₹10',         desc: 'Bi-metallic' },
+      { value: 20,   type: 'coin', label: '₹20',         desc: '12-sided coin' },
+      { value: 10,   type: 'note', label: '₹10',         desc: 'Banknote · Sun Temple Konark' },
+      { value: 20,   type: 'note', label: '₹20',         desc: 'Banknote · Ellora Caves' },
+      { value: 50,   type: 'note', label: '₹50',         desc: 'Banknote · Hampi with Chariot' },
+      { value: 100,  type: 'note', label: '₹100',        desc: 'Banknote · Rani ki vav' },
+      { value: 200,  type: 'note', label: '₹200',        desc: 'Banknote · Sanchi Stupa' },
+      { value: 500,  type: 'note', label: '₹500',        desc: 'Banknote · Red Fort' },
+      { value: 2000, type: 'note', label: '₹2000',       desc: 'Banknote · Mangalyaan' },
+    ]
+  },
+  AUD: {
+    name: 'Australian Dollar',
+    symbol: 'A$',
+    flag: '🇦🇺',
+    denominations: [
+      { value: 0.05, type: 'coin', label: '5¢',         desc: 'Cupro-nickel · Echidna' },
+      { value: 0.10, type: 'coin', label: '10¢',        desc: 'Cupro-nickel · Lyrebird' },
+      { value: 0.20, type: 'coin', label: '20¢',        desc: 'Cupro-nickel · Platypus' },
+      { value: 0.50, type: 'coin', label: '50¢',        desc: '12-sided · Coat of Arms' },
+      { value: 1,    type: 'coin', label: '$1',         desc: 'Aluminium-bronze · Kangaroo' },
+      { value: 2,    type: 'coin', label: '$2',         desc: 'Aluminium-bronze · Elder' },
+      { value: 5,    type: 'note', label: '$5',         desc: 'Polymer · King Charles III' },
+      { value: 10,   type: 'note', label: '$10',        desc: 'Polymer · Banjo Paterson / D. Mackellar' },
+      { value: 20,   type: 'note', label: '$20',        desc: 'Polymer · Mary Reibey / Rev. Flynn' },
+      { value: 50,   type: 'note', label: '$50',        desc: 'Polymer · Edith Cowan / David Unaipon' },
+      { value: 100,  type: 'note', label: '$100',       desc: 'Polymer · Dame Nellie Melba / Sir John Monash' },
+    ]
+  },
+  KRW: {
+    name: 'South Korean Won',
+    symbol: '₩',
+    flag: '🇰🇷',
+    denominations: [
+      { value: 1,     type: 'coin', label: '1 Won',      desc: 'Aluminium' },
+      { value: 5,     type: 'coin', label: '5 Won',      desc: 'Brass' },
+      { value: 10,    type: 'coin', label: '10 Won',     desc: 'Copper-plated aluminium' },
+      { value: 50,    type: 'coin', label: '50 Won',     desc: 'Cupro-nickel' },
+      { value: 100,   type: 'coin', label: '100 Won',    desc: 'Cupro-nickel · Admiral Yi Sun-sin' },
+      { value: 500,   type: 'coin', label: '500 Won',    desc: 'Cupro-nickel · Manchurian crane' },
+      { value: 1000,  type: 'note', label: '1,000 Won',  desc: 'Banknote · Yi Hwang' },
+      { value: 5000,  type: 'note', label: '5,000 Won',  desc: 'Banknote · Yi I' },
+      { value: 10000, type: 'note', label: '10,000 Won', desc: 'Banknote · Sejong the Great' },
+      { value: 50000, type: 'note', label: '50,000 Won', desc: 'Banknote · Shin Saimdang' },
+    ]
+  },
+  SEK: {
+    name: 'Swedish Krona',
+    symbol: 'kr',
+    flag: '🇸🇪',
+    denominations: [
+      { value: 1,    type: 'coin', label: '1 Krona',     desc: 'Steel' },
+      { value: 2,    type: 'coin', label: '2 Kronor',    desc: 'Steel' },
+      { value: 5,    type: 'coin', label: '5 Kronor',    desc: 'Steel' },
+      { value: 10,   type: 'coin', label: '10 Kronor',   desc: 'Nordic gold' },
+      { value: 20,   type: 'note', label: '20 Kronor',   desc: 'Banknote · Astrid Lindgren' },
+      { value: 50,   type: 'note', label: '50 Kronor',   desc: 'Banknote · Evert Taube' },
+      { value: 100,  type: 'note', label: '100 Kronor',  desc: 'Banknote · Greta Garbo' },
+      { value: 200,  type: 'note', label: '200 Kronor',  desc: 'Banknote · Ingmar Bergman' },
+      { value: 500,  type: 'note', label: '500 Kronor',  desc: 'Banknote · Birgit Nilsson' },
+      { value: 1000, type: 'note', label: '1,000 Kronor',desc: 'Banknote · Dag Hammarskjöld' },
+    ]
+  },
+};
+
+const TARGET = 'CHF';
+
+// populate selector
+const sel = document.getElementById('from-currency');
+Object.entries(DENOMINATIONS).forEach(([code, info]) => {
+  const opt = document.createElement('option');
+  opt.value = code;
+  opt.textContent = `${info.flag}  ${code} – ${info.name}`;
+  if (code === TARGET) opt.textContent += ' (target)';
+  sel.appendChild(opt);
+});
+
+// default selection
+sel.value = 'JPY';
+
+let rateCache = {};
+
+async function getRate(from) {
+  if (rateCache[from]) return rateCache[from];
+  const url = `https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${TARGET}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  rateCache[from] = { rate: data.rates[TARGET], date: data.date };
+  return rateCache[from];
+}
+
+function formatCHF(amount) {
+  if (amount < 0.01) return '< 0.01';
+  return amount.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+function formatSource(value, symbol) {
+  if (value >= 1000) return symbol + value.toLocaleString();
+  return symbol + value;
+}
+
+async function render(code) {
+  const content = document.getElementById('content');
+  const badge = document.getElementById('rate-badge');
+
+  if (!code) {
+    content.innerHTML = '<div class="state-msg">Choose a currency above to see its denominations.</div>';
+    return;
+  }
+
+  content.innerHTML = `<div class="state-msg"><span class="spinner"></span> Fetching live rates…</div>`;
+
+  let rateInfo;
+  try {
+    rateInfo = await getRate(code);
+  } catch (e) {
+    content.innerHTML = `<div class="state-msg error">⚠ Could not load exchange rates. Check your connection.<br><small>${e.message}</small></div>`;
+    return;
+  }
+
+  const info = DENOMINATIONS[code];
+  const { rate, date } = rateInfo;
+
+  // Update badge
+  document.getElementById('rate-val').textContent =
+    `1 ${code} = ${formatCHF(rate)} CHF`;
+  document.getElementById('rate-date').textContent = `ECB rate · ${date}`;
+
+  const coins = info.denominations.filter(d => d.type === 'coin');
+  const notes = info.denominations.filter(d => d.type === 'note');
+
+  function buildSection(items, label) {
+    if (!items.length) return '';
+    const cards = items.map((d, i) => {
+      const chf = d.value * rate;
+      return `
+        <div class="denom-card" style="animation-delay:${i * 40}ms">
+          <div class="denom-icon ${d.type}">
+            ${d.type === 'coin' ? '🪙' : '💵'}
+          </div>
+          <div class="denom-info">
+            <div class="denom-value">${formatSource(d.value, info.symbol)}</div>
+            <div class="denom-name">${d.desc}</div>
+            <span class="denom-type-badge ${d.type}">${d.type}</span>
+          </div>
+          <div class="denom-converted">
+            <div class="converted-amount">${formatCHF(chf)}</div>
+            <div class="converted-currency">CHF</div>
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      <div class="section-title">${label}</div>
+      <div class="denom-grid">${cards}</div>
+      <div class="section-spacer"></div>`;
+  }
+
+  content.innerHTML =
+    buildSection(coins, 'COINS') +
+    buildSection(notes, 'BANKNOTES');
+}
+
+sel.addEventListener('change', () => render(sel.value));
+render(sel.value);
+</script>
+
+</body>
+</html>
