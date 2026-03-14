@@ -14,6 +14,7 @@
 
   <div class="noise-overlay"></div>
 
+  <!-- ── HEADER ──────────────────────────────────── -->
   <header class="site-header">
     <div class="container">
       <div class="header-inner">
@@ -22,73 +23,112 @@
           <span class="logo-en">LIVE TRACKER</span>
         </div>
         <div class="header-controls">
-          <label for="train-type" class="sr-only">Train Type</label>
-          <select id="train-type" name="train-type">
-            <option value="11" selected>Type 11 · Tokaido</option>
-          </select>
-          <label for="train-no" class="sr-only">Train No.</label>
-          <input id="train-no" type="number" value="754" min="1" max="9999" placeholder="Train No." />
-          <button id="fetch-btn" class="fetch-btn">
-            <span class="btn-icon">⟳</span>
+
+          <div class="picker-group">
+            <label class="picker-label" for="bound-select">Direction</label>
+            <select id="bound-select">
+              <option value="2">→ West bound</option>
+              <option value="1">← East bound</option>
+            </select>
+          </div>
+
+          <div class="picker-group">
+            <label class="picker-label" for="train-select">Train</label>
+            <select id="train-select" disabled>
+              <option value="">— loading —</option>
+            </select>
+          </div>
+
+          <button id="fetch-btn" class="fetch-btn" disabled>
+            <span class="btn-spin" id="btn-spin">⟳</span>
             <span>Track</span>
           </button>
+
+          <button id="refresh-btn" class="refresh-btn" title="Refresh live train list">↺</button>
         </div>
       </div>
     </div>
   </header>
 
-  <main class="container">
-
-    <section id="train-header" class="train-meta hidden">
-      <div class="meta-badge">
-        <span id="train-type-label" class="type-label"></span>
-        <span id="train-number-label" class="train-number"></span>
-      </div>
-      <div class="meta-info">
-        <div class="meta-item">
-          <span class="meta-key">Direction</span>
-          <span id="meta-direction" class="meta-val">—</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-key">Status</span>
-          <span id="meta-status" class="meta-val">—</span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-key">Updated</span>
-          <span id="meta-updated" class="meta-val">—</span>
-        </div>
-      </div>
-    </section>
-
-    <div id="error-box" class="error-box hidden">
-      <p id="error-msg"></p>
+  <!-- ── SERVICE STATUS BAR ──────────────────────── -->
+  <div id="status-bar" class="status-bar hidden">
+    <div class="container">
+      <span id="status-text"></span>
     </div>
+  </div>
 
-    <div id="loading" class="loading-state hidden">
-      <div class="loader-track">
-        <div class="loader-train"></div>
-      </div>
-      <p>Fetching live data…</p>
-    </div>
+  <!-- ── MAIN ────────────────────────────────────── -->
+  <main class="container main-layout">
 
-    <section id="route-section" class="route-section hidden">
-      <div class="route-legend">
-        <span class="legend-item"><span class="dot dot--passed"></span> Passed</span>
-        <span class="legend-item"><span class="dot dot--current"></span> Current / Next</span>
-        <span class="legend-item"><span class="dot dot--upcoming"></span> Upcoming</span>
-        <span class="legend-item"><span class="dot dot--skip"></span> No stop</span>
+    <!-- Left: live train list panel -->
+    <aside class="live-panel">
+      <div class="panel-head">
+        <span class="panel-title">LIVE TRAINS</span>
+        <span id="live-count" class="live-count">—</span>
       </div>
-      <div class="route-container">
-        <div class="route-line" id="route-line"></div>
-        <div id="stations-list" class="stations-list"></div>
+      <div id="live-list" class="live-list">
+        <div class="live-loading">Loading…</div>
       </div>
+    </aside>
+
+    <!-- Right: selected train detail -->
+    <section class="detail-panel">
+
+      <div id="train-header" class="train-meta hidden">
+        <div class="meta-badge">
+          <span id="train-type-label" class="type-label"></span>
+          <span id="train-number-label" class="train-number"></span>
+          <span id="delay-badge" class="delay-badge hidden"></span>
+        </div>
+        <div class="meta-info">
+          <div class="meta-item">
+            <span class="meta-key">Direction</span>
+            <span id="meta-direction" class="meta-val">—</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-key">Delay</span>
+            <span id="meta-status" class="meta-val">—</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-key">Updated</span>
+            <span id="meta-updated" class="meta-val">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="error-box" class="error-box hidden">
+        <p id="error-msg"></p>
+      </div>
+
+      <div id="loading" class="loading-state hidden">
+        <div class="loader-track"><div class="loader-train"></div></div>
+        <p>Fetching live data…</p>
+      </div>
+
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon">🚄</div>
+        <p>Select a train from the list<br/>or use the picker above</p>
+      </div>
+
+      <section id="route-section" class="route-section hidden">
+        <div class="route-legend">
+          <span class="legend-item"><span class="dot dot--passed"></span> Passed</span>
+          <span class="legend-item"><span class="dot dot--current"></span> Current</span>
+          <span class="legend-item"><span class="dot dot--upcoming"></span> Upcoming</span>
+          <span class="legend-item"><span class="dot dot--skip"></span> No stop</span>
+        </div>
+        <div class="route-container">
+          <div class="route-line" id="route-line"></div>
+          <div id="stations-list" class="stations-list"></div>
+        </div>
+      </section>
+
     </section>
-
   </main>
 
   <footer class="site-footer">
     <div class="container">
-      <p>Data sourced from <strong>JR Central</strong> public API · For informational use only</p>
+      <p>Data: <strong>JR Central</strong> public API · For informational use only · Auto-refreshes every 60s</p>
     </div>
   </footer>
 
