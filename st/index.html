@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新幹線 · Shinkansen Live Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="noise-overlay"></div>
+
+  <header class="site-header">
+    <div class="container">
+      <div class="header-inner">
+        <div class="header-logo">
+          <span class="logo-ja">新幹線</span>
+          <span class="logo-en">LIVE TRACKER</span>
+        </div>
+        <div class="header-controls">
+          <label for="train-type" class="sr-only">Train Type</label>
+          <select id="train-type" name="train-type">
+            <option value="11" selected>Type 11 · Tokaido</option>
+          </select>
+          <label for="train-no" class="sr-only">Train No.</label>
+          <input id="train-no" type="number" value="754" min="1" max="9999" placeholder="Train No." />
+          <button id="fetch-btn" class="fetch-btn">
+            <span class="btn-icon">⟳</span>
+            <span>Track</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <section id="train-header" class="train-meta hidden">
+      <div class="meta-badge">
+        <span id="train-type-label" class="type-label"></span>
+        <span id="train-number-label" class="train-number"></span>
+      </div>
+      <div class="meta-info">
+        <div class="meta-item">
+          <span class="meta-key">Direction</span>
+          <span id="meta-direction" class="meta-val">—</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-key">Status</span>
+          <span id="meta-status" class="meta-val">—</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-key">Updated</span>
+          <span id="meta-updated" class="meta-val">—</span>
+        </div>
+      </div>
+    </section>
+
+    <div id="error-box" class="error-box hidden">
+      <p id="error-msg"></p>
+    </div>
+
+    <div id="loading" class="loading-state hidden">
+      <div class="loader-track">
+        <div class="loader-train"></div>
+      </div>
+      <p>Fetching live data…</p>
+    </div>
+
+    <section id="route-section" class="route-section hidden">
+      <div class="route-legend">
+        <span class="legend-item"><span class="dot dot--passed"></span> Passed</span>
+        <span class="legend-item"><span class="dot dot--current"></span> Current / Next</span>
+        <span class="legend-item"><span class="dot dot--upcoming"></span> Upcoming</span>
+        <span class="legend-item"><span class="dot dot--skip"></span> No stop</span>
+      </div>
+      <div class="route-container">
+        <div class="route-line" id="route-line"></div>
+        <div id="stations-list" class="stations-list"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Data sourced from <strong>JR Central</strong> public API · For informational use only</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
