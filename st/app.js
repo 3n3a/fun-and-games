@@ -7,14 +7,14 @@
  *   • service_status.json      → service disruption alerts
  *   • train_info_{type}_{no}.json → per-train stop schedule (via CORS proxy)
  *
- * CORS proxy: allorigins.win wraps responses in { contents: "..." }
  */
 
 // ─────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────
 const BASE   = 'https://traininfo.jr-central.co.jp/shinkansen';
-const PROXY  = 'https://api.allorigins.win/get?url=';
+const PROXY_LIST = [ 'https://api.cors.lol/?url=', 'https://api.allorigins.win/get?url=' ];
+const PROXY  = PROXY_LIST[1]; // TODO: support others
 
 // Train-type → CSS class & display colour (matches common.Const.TRAIN_CLASS)
 // Values are supplemented by what common_en.json returns at runtime
