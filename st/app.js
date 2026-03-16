@@ -1,23 +1,54 @@
 /**
  * 新幹線 Live Tracker — app.js
  *
- * All configuration is fetched dynamically from JR Central's public endpoints:
- *   • common_en.json   → station master, train type names, bound labels
- *   • train_location_info.json → live positions of every running train
- *   • service_status.json      → service disruption alerts
- *   • train_info_{type}_{no}.json → per-train stop schedule (via CORS proxy)
- *
+ * Fetches all config dynamically from JR Central public endpoints.
+ * Fallback station names + train type names are embedded for robustness
+ * (used only when the API hasn't responded yet / returns unexpected data).
  */
 
 // ─────────────────────────────────────────────────────
-// Constants
+// API base & CORS proxy
 // ─────────────────────────────────────────────────────
-const BASE   = 'https://traininfo.jr-central.co.jp/shinkansen';
-const PROXY_LIST = [ 'https://api.cors.lol/?url=', 'https://api.allorigins.win/get?url=' ];
-const PROXY  = PROXY_LIST[1]; // TODO: support others
+const BASE  = 'https://traininfo.jr-central.co.jp/shinkansen';
+const PROXY = 'https://api.allorigins.win/get?url=';
 
-// Train-type → CSS class & display colour (matches common.Const.TRAIN_CLASS)
-// Values are supplemented by what common_en.json returns at runtime
+// ─────────────────────────────────────────────────────
+// Fallback data (mirrors common_en.json — used when CONFIG not yet loaded)
+// ─────────────────────────────────────────────────────
+const FB_TRAIN_NAMES = {
+  '1': 'HIKARI', '2': 'KODAMA', '6': 'NOZOMI',
+  '10': 'MIZUHO', '11': 'SAKURA', '12': 'TSUBAME',
+  '8': 'Group', '9': 'Out of Service',
+};
+
+const FB_STATIONS = {
+  '1':'Tokyo','2':'Shinagawa','3':'Shin-Yokohama',
+  '4':'Odawara','5':'Atami','6':'Mishima',
+  '32':'Shin-Fuji','7':'Shizuoka','33':'Kakegawa',
+  '8':'Hamamatsu','9':'Toyohashi','34':'Mikawa-Anjo',
+  '10':'Nagoya','11':'Gifu-Hashima','12':'Maibara',
+  '13':'Kyoto','15':'Shin-Osaka','16':'Shin-Kobe',
+  '17':'Nishi-Akashi','18':'Himeji','19':'Aioi',
+  '20':'Okayama','21':'Shin-Kurashiki','22':'Fukuyama',
+  '35':'Shin-Onomichi','23':'Mihara','41':'Higashi-Hiroshima',
+  '24':'Hiroshima','25':'Shin-Iwakuni','26':'Tokuyama',
+  '27':'Shin-Yamaguchi','42':'Asa','28':'Shin-Shimonoseki',
+  '29':'Kokura','30':'Hakata','46':'Shin-Tosu','47':'Kurume',
+  '48':'Chikugo-Funagoya','49':'Shin-Omuta','50':'Shin-Tamana',
+  '51':'Kumamoto','52':'Shin-Yatsushiro','53':'Shin-Minamata',
+  '54':'Izumi','55':'Sendai','56':'Kagoshima-Chuo',
+};
+
+// Station order for full route render (from stationOrder in common_en.json)
+const FB_ORDER = ['1','2','3','4','5','6','32','7','33','8','9','34',
+                  '10','11','12','13','15','16','17','18','19','20',
+                  '21','22','35','23','41','24','25','26','27','42',
+                  '28','29','30'];
+
+// Train terminus by bound
+const TERMINUS = { '1': 'Tokyo', '2': 'Hakata' };
+
+// Type → visual style (names come from CONFIG at runtime, fallback above)
 const TYPE_META = {
   '1':  { cls: 'type-hikari',  color: '#4fa8f0' },
   '2':  { cls: 'type-kodama',  color: '#3ecf7a' },
@@ -30,10 +61,11 @@ const TYPE_META = {
 // ─────────────────────────────────────────────────────
 // App state
 // ─────────────────────────────────────────────────────
-let CONFIG       = null;   // parsed common_en.json .constant
-let LOCATION     = null;   // latest train_location_info
-let selectedTrain = null;  // { trainNumber, train (type code), bound }
+let CONFIG        = null;
+let LOCATION      = null;
+let selectedTrain = null;
 let refreshTimer  = null;
+let mobileView    = 'list'; // 'list' | 'detail'
 
 // ─────────────────────────────────────────────────────
 // DOM refs
@@ -45,6 +77,7 @@ const refreshBtn     = document.getElementById('refresh-btn');
 const btnSpin        = document.getElementById('btn-spin');
 const statusBar      = document.getElementById('status-bar');
 const statusText     = document.getElementById('status-text');
+const livePanel      = document.querySelector('.live-panel');
 const liveList       = document.getElementById('live-list');
 const liveCount      = document.getElementById('live-count');
 const trainHeader    = document.getElementById('train-header');
@@ -55,29 +88,28 @@ const metaDirection  = document.getElementById('meta-direction');
 const metaStatus     = document.getElementById('meta-status');
 const metaUpdated    = document.getElementById('meta-updated');
 const errorBox       = document.getElementById('error-box');
-const errorMsg       = document.getElementById('error-msg');
+const errorMsgEl     = document.getElementById('error-msg');
 const loadingEl      = document.getElementById('loading');
 const emptyState     = document.getElementById('empty-state');
 const routeSection   = document.getElementById('route-section');
 const stationsList   = document.getElementById('stations-list');
 const routeLine      = document.getElementById('route-line');
+const detailPanel    = document.querySelector('.detail-panel');
+const backBtn        = document.getElementById('back-btn');
+const tabList        = document.getElementById('tab-list');
+const tabDetail      = document.getElementById('tab-detail');
 
 // ─────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────
-function showEl(el)  { el.classList.remove('hidden'); }
-function hideEl(el)  { el.classList.add('hidden'); }
+const showEl = el => el?.classList.remove('hidden');
+const hideEl = el => el?.classList.add('hidden');
 
 async function proxyFetch(url) {
   const r = await fetch(PROXY + encodeURIComponent(url));
   if (!r.ok) throw new Error(`Proxy HTTP ${r.status}`);
   const w = await r.json();
   return JSON.parse(w.contents);
-}
-
-async function directFetch(url) {
-  // For same-origin style calls via proxy (all JR Central endpoints need proxy)
-  return proxyFetch(url);
 }
 
 function ts() { return Date.now(); }
@@ -95,66 +127,109 @@ function typeMeta(code) {
 }
 
 function typeName(code) {
-  if (!CONFIG) return `Type ${code}`;
-  return CONFIG.train[String(code)] || `Type ${code}`;
+  const k = String(code);
+  // Try live config first, then fallback
+  return CONFIG?.train?.[k] || FB_TRAIN_NAMES[k] || `Type ${code}`;
 }
 
 function stationName(id) {
-  if (!CONFIG) return `Stn ${id}`;
-  return CONFIG.station[String(id)] || `Stn ${id}`;
+  const k = String(id);
+  return CONFIG?.station?.[k] || FB_STATIONS[k] || `Stn ${k}`;
 }
 
-function boundLabel(boundCode) {
-  if (!CONFIG) return boundCode == 2 ? 'West bound' : 'East bound';
-  return CONFIG.boundLong[String(boundCode)] || CONFIG.bound[String(boundCode)] || `Bound ${boundCode}`;
+function stationOrder() {
+  return CONFIG?.stationOrder || FB_ORDER;
 }
 
-// Collect all trains from location data for a given bound
+function boundLabel(code) {
+  const k = String(code);
+  return CONFIG?.boundLong?.[k] || (k === '2' ? 'to Hakata (West bound)' : 'to Tokyo (East bound)');
+}
+
+function boundShort(code) {
+  const k = String(code);
+  return CONFIG?.boundShort?.[k] || (k === '2' ? 'West bound' : 'East bound');
+}
+
+// ─────────────────────────────────────────────────────
+// Mobile view switching
+// ─────────────────────────────────────────────────────
+function isMobile() { return window.innerWidth <= 720; }
+
+function showMobileDetail() {
+  mobileView = 'detail';
+  livePanel.classList.add('mobile-hidden');
+  detailPanel.classList.add('mobile-visible');
+  showEl(backBtn);
+  tabList.classList.remove('active');
+  tabDetail.classList.add('active');
+}
+
+function showMobileList() {
+  mobileView = 'list';
+  livePanel.classList.remove('mobile-hidden');
+  detailPanel.classList.remove('mobile-visible');
+  hideEl(backBtn);
+  tabList.classList.add('active');
+  tabDetail.classList.remove('active');
+}
+
+backBtn?.addEventListener('click', showMobileList);
+tabList?.addEventListener('click', showMobileList);
+tabDetail?.addEventListener('click', () => {
+  if (selectedTrain) showMobileDetail();
+});
+
+// ─────────────────────────────────────────────────────
+// Collect all trains from location data
+// ─────────────────────────────────────────────────────
 function getAllTrains(locationData, bound) {
   const trains = [];
-  const boundKey = String(bound);
-  const data = locationData.trainLocationInfo;
+  const bk = String(bound);
+  const data = locationData?.trainLocationInfo;
   if (!data) return trains;
 
-  // At-station trains
-  const atBound = data.atStation?.bounds?.[boundKey] || [];
-  for (const entry of atBound) {
+  const order = stationOrder();
+
+  // At-station
+  for (const entry of (data.atStation?.bounds?.[bk] || [])) {
     for (const t of (entry.trains || [])) {
       trains.push({
         trainNumber: t.trainNumber,
         train: String(t.train),
         delay: t.delay || 0,
         bound,
+        currentStation: entry.station,
         location: `At ${stationName(entry.station)}`,
-        stationId: entry.station,
+        locationShort: stationName(entry.station),
         between: false,
         sot: t.sot,
+        track: t.track,
       });
     }
   }
 
-  // Between-station trains
-  const bwBound = data.betweenStation?.bounds?.[boundKey] || [];
-  for (const entry of bwBound) {
+  // Between stations
+  for (const entry of (data.betweenStation?.bounds?.[bk] || [])) {
     for (const t of (entry.trains || [])) {
       trains.push({
         trainNumber: t.trainNumber,
         train: String(t.train),
         delay: t.delay || 0,
         bound,
+        currentStation: entry.station,
         location: `→ ${stationName(entry.station)}`,
-        stationId: entry.station,
+        locationShort: stationName(entry.station),
         between: true,
         sot: false,
       });
     }
   }
 
-  // Sort by station order then train number
-  const order = CONFIG?.stationOrder || [];
+  // Sort by station position in route
   trains.sort((a, b) => {
-    const ai = order.indexOf(String(a.stationId));
-    const bi = order.indexOf(String(b.stationId));
+    const ai = order.indexOf(String(a.currentStation));
+    const bi = order.indexOf(String(b.currentStation));
     if (ai !== bi) return ai - bi;
     return parseInt(a.trainNumber) - parseInt(b.trainNumber);
   });
@@ -163,58 +238,26 @@ function getAllTrains(locationData, bound) {
 }
 
 // ─────────────────────────────────────────────────────
-// Load config + initial location data
-// ─────────────────────────────────────────────────────
-async function init() {
-  try {
-    // Load config and live location in parallel
-    const [cfg, loc, svc] = await Promise.all([
-      directFetch(jrcUrl('common/data/common_en.json')),
-      directFetch(jrcUrl('var/train_info/train_location_info.json')),
-      directFetch(jrcUrl('var/train_info/service_status.json')),
-    ]);
-
-    CONFIG   = cfg.constant;
-    LOCATION = loc;
-
-    handleServiceStatus(svc);
-    populateLiveList(loc);
-    enablePicker();
-    scheduleAutoRefresh();
-
-  } catch (err) {
-    console.error('Init failed', err);
-    liveList.innerHTML = `<div class="live-loading" style="color:var(--red)">⚠ Failed to load live data.<br/>Check network / CORS proxy.</div>`;
-  }
-}
-
-// ─────────────────────────────────────────────────────
 // Service status bar
 // ─────────────────────────────────────────────────────
 function handleServiceStatus(svc) {
   const info = svc?.serviceStatusInfo;
-  if (!info || !info.serviceStatusIsEnabled || !info.data?.length) {
-    statusBar.className = 'status-bar ok hidden';
+  if (!info?.serviceStatusIsEnabled || !info?.data?.length) {
+    hideEl(statusBar);
     return;
   }
-  // Show first status entry
-  const d = info.data[0];
-  const screen = {}; // We don't have ti01f loaded; just show raw cause code
-  statusText.textContent = `⚠ Service disruption · ${d.area || ''} ${d.status || ''}`;
-  statusBar.className = 'status-bar';
+  statusText.textContent = `⚠ Service disruption — check JR Central for details`;
   showEl(statusBar);
 }
 
 // ─────────────────────────────────────────────────────
-// Populate live side panel
+// Build live sidebar list
 // ─────────────────────────────────────────────────────
 function populateLiveList(loc) {
   liveList.innerHTML = '';
   let totalCount = 0;
 
-  const bounds = ['2', '1']; // West-bound first, East-bound second
-
-  for (const b of bounds) {
+  for (const b of ['2', '1']) {
     const trains = getAllTrains(loc, b);
     if (!trains.length) continue;
     totalCount += trains.length;
@@ -222,33 +265,37 @@ function populateLiveList(loc) {
     // Section header
     const hdr = document.createElement('div');
     hdr.className = 'bound-group-header';
-    hdr.textContent = boundLabel(b);
+    const terminus = TERMINUS[b] || '';
+    hdr.innerHTML = `<span>${boundShort(b)}</span><span class="bound-terminus">→ ${terminus}</span>`;
     liveList.appendChild(hdr);
 
     for (const t of trains) {
       const meta = typeMeta(t.train);
       const name = typeName(t.train);
-
-      const row = document.createElement('div');
+      const row  = document.createElement('div');
       row.className = `live-train-row${t.between ? ' between' : ''}`;
       row.dataset.trainNumber = t.trainNumber;
       row.dataset.trainType   = t.train;
       row.dataset.bound       = b;
 
       row.innerHTML = `
-        <div class="live-train-dot" style="background:${meta.color}"></div>
+        <div class="live-train-dot" style="background:${meta.color};${t.between ? 'opacity:0.6' : ''}"></div>
         <div class="live-train-info">
           <div class="live-train-type" style="color:${meta.color}">${name}</div>
           <div class="live-train-num">No. ${t.trainNumber}</div>
           <div class="live-train-loc">${t.location}</div>
         </div>
-        ${t.delay > 0 ? '<div class="live-delay-dot" title="Delayed"></div>' : ''}
+        ${t.delay > 0 ? `<span class="live-delay-tag">+${t.delay}</span>` : ''}
       `;
 
       row.addEventListener('click', () => {
         document.querySelectorAll('.live-train-row.active').forEach(r => r.classList.remove('active'));
         row.classList.add('active');
+        // Sync dropdowns
+        boundSelect.value = b;
+        populateDropdown(loc);
         selectTrain(t.trainNumber, t.train, b, t.delay);
+        if (isMobile()) showMobileDetail();
       });
 
       liveList.appendChild(row);
@@ -260,11 +307,11 @@ function populateLiveList(loc) {
 }
 
 // ─────────────────────────────────────────────────────
-// Populate header dropdown (filtered by bound)
+// Populate header dropdown
 // ─────────────────────────────────────────────────────
 function populateDropdown(loc) {
   const bound  = boundSelect.value;
-  const trains = getAllTrains(loc, bound);
+  const trains = getAllTrains(loc || LOCATION, bound);
 
   trainSelect.innerHTML = '';
   if (!trains.length) {
@@ -275,7 +322,7 @@ function populateDropdown(loc) {
 
   for (const t of trains) {
     const opt = document.createElement('option');
-    opt.value = JSON.stringify({ trainNumber: t.trainNumber, train: t.train, delay: t.delay });
+    opt.value = JSON.stringify({ trainNumber: t.trainNumber, train: t.train, delay: t.delay, bound });
     opt.textContent = `${typeName(t.train)} ${t.trainNumber} — ${t.location}`;
     trainSelect.appendChild(opt);
   }
@@ -284,64 +331,85 @@ function populateDropdown(loc) {
   fetchBtn.disabled    = false;
 }
 
-function enablePicker() {
-  boundSelect.addEventListener('change', () => populateDropdown(LOCATION));
-}
-
 // ─────────────────────────────────────────────────────
-// Auto-refresh every 60s
+// Init
 // ─────────────────────────────────────────────────────
-function scheduleAutoRefresh() {
-  clearInterval(refreshTimer);
-  refreshTimer = setInterval(refreshLocation, 60_000);
-}
-
-async function refreshLocation() {
+async function init() {
   try {
-    const loc = await directFetch(jrcUrl('var/train_info/train_location_info.json'));
+    const [cfg, loc, svc] = await Promise.all([
+      proxyFetch(jrcUrl('common/data/common_en.json')),
+      proxyFetch(jrcUrl('var/train_info/train_location_info.json')),
+      proxyFetch(jrcUrl('var/train_info/service_status.json')),
+    ]);
+
+    CONFIG   = cfg.constant;
     LOCATION = loc;
+
+    handleServiceStatus(svc);
     populateLiveList(loc);
-    // Re-highlight active train if any
-    if (selectedTrain) {
-      const activeRow = liveList.querySelector(
-        `.live-train-row[data-train-number="${selectedTrain.trainNumber}"]`
-      );
-      if (activeRow) activeRow.classList.add('active');
-    }
-  } catch (e) {
-    console.warn('Location refresh failed', e);
+    boundSelect.addEventListener('change', () => populateDropdown(LOCATION));
+    scheduleAutoRefresh();
+
+  } catch (err) {
+    console.error('Init failed', err);
+    liveList.innerHTML = `<div class="live-loading" style="color:var(--red)">
+      ⚠ Could not load live data.<br/>
+      <small>CORS proxy may be rate-limited. Try refreshing.</small>
+    </div>`;
   }
 }
 
 // ─────────────────────────────────────────────────────
-// Select + track a train
+// Auto-refresh
+// ─────────────────────────────────────────────────────
+function scheduleAutoRefresh() {
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(async () => {
+    try {
+      const loc = await proxyFetch(jrcUrl('var/train_info/train_location_info.json'));
+      LOCATION = loc;
+      populateLiveList(loc);
+      // Re-highlight active
+      if (selectedTrain) {
+        const r = liveList.querySelector(`[data-train-number="${selectedTrain.trainNumber}"]`);
+        if (r) r.classList.add('active');
+      }
+    } catch(e) { console.warn('Refresh failed', e); }
+  }, 60_000);
+}
+
+// ─────────────────────────────────────────────────────
+// Select & track a train
 // ─────────────────────────────────────────────────────
 async function selectTrain(trainNumber, trainType, bound, delay = 0) {
-  selectedTrain = { trainNumber, train: trainType, bound, delay };
+  selectedTrain = { trainNumber, trainType, bound, delay };
 
   hideEl(errorBox);
   hideEl(emptyState);
   hideEl(routeSection);
   showEl(loadingEl);
   hideEl(trainHeader);
+  // Remove any old fallback notice
+  detailPanel.querySelectorAll('.fallback-notice').forEach(n => n.remove());
 
   btnSpin.classList.add('spinning');
+  fetchBtn.disabled = true;
 
   try {
-    const url = jrcUrl(`var/train_info/train_info_${trainType}_${trainNumber}.json`);
-    const data = await directFetch(url);
-
+    const data = await proxyFetch(jrcUrl(`var/train_info/train_info_${trainType}_${trainNumber}.json`));
     hideEl(loadingEl);
-    renderTrainMeta(data, trainNumber, trainType, bound, delay);
-    renderRoute(data, trainType);
+    renderTrainMeta(trainNumber, trainType, bound, delay, data);
+    renderRoute(data, trainType, bound, trainNumber);
     showEl(routeSection);
     showEl(trainHeader);
-
   } catch (err) {
-    console.error('Train fetch failed', err);
+    console.error(err);
     hideEl(loadingEl);
-    showEl(emptyState);
-    errorMsg.textContent = `Could not load data for train ${trainNumber}. ${err.message || ''}`;
+    renderTrainMeta(trainNumber, trainType, bound, delay, null);
+    renderRouteFallback(trainType, bound, trainNumber);
+    showEl(routeSection);
+    showEl(trainHeader);
+    errorMsgEl.textContent = `Timetable unavailable for No. ${trainNumber} — showing live position only.`;
     showEl(errorBox);
   } finally {
     btnSpin.classList.remove('spinning');
@@ -350,9 +418,9 @@ async function selectTrain(trainNumber, trainType, bound, delay = 0) {
 }
 
 // ─────────────────────────────────────────────────────
-// Render train meta header
+// Render meta header
 // ─────────────────────────────────────────────────────
-function renderTrainMeta(data, trainNumber, trainType, bound, delay) {
+function renderTrainMeta(trainNumber, trainType, bound, delay, data) {
   const meta = typeMeta(trainType);
   const name = typeName(trainType);
 
@@ -360,17 +428,14 @@ function renderTrainMeta(data, trainNumber, trainType, bound, delay) {
   trainTypeLabel.className   = `type-label ${meta.cls}`;
   trainNumLabel.textContent  = `No. ${trainNumber}`;
 
-  // Direction from API or infer from train number parity
-  const apiDir = data?.trainInfo?.bound ?? data?.bound;
-  const dirCode = apiDir || (parseInt(trainNumber) % 2 === 0 ? 2 : 1);
-  metaDirection.textContent = boundLabel(dirCode);
+  const dirCode = data?.trainInfo?.bound ?? data?.bound ?? bound;
+  metaDirection.textContent  = boundLabel(dirCode);
 
-  // Delay
   const delayMin = delay || data?.trainInfo?.delay || data?.delay || 0;
   if (delayMin > 0) {
     delayBadge.textContent = `+${delayMin} min`;
     showEl(delayBadge);
-    metaStatus.textContent = `Delayed +${delayMin} min`;
+    metaStatus.textContent = `+${delayMin} min delay`;
     metaStatus.style.color = 'var(--red)';
   } else {
     hideEl(delayBadge);
@@ -382,196 +447,197 @@ function renderTrainMeta(data, trainNumber, trainType, bound, delay) {
 }
 
 // ─────────────────────────────────────────────────────
-// Render route line
+// Render route from timetable API
 // ─────────────────────────────────────────────────────
-function renderRoute(data, trainType) {
+function renderRoute(data, trainType, bound, trainNumber) {
   stationsList.innerHTML = '';
-
-  const meta = typeMeta(trainType);
-
-  // Update line colour
   routeLine.style.background =
-    `linear-gradient(to bottom, var(--muted) 0%, ${meta.color}88 100%)`;
+    `linear-gradient(to bottom, var(--muted) 0%, ${typeMeta(trainType).color}99 100%)`;
 
-  // Extract station list from various possible response shapes
-  const stationList = extractStationList(data);
-  if (!stationList || stationList.length === 0) {
-    renderLocationFallback(trainType);
+  const list = extractStationList(data);
+  if (!list?.length) {
+    renderRouteFallback(trainType, bound, trainNumber);
     return;
   }
 
-  // Detect current position
-  let currentIdx = stationList.findIndex(s =>
-    s.now_flag == 1 || s.now_flag === true || s.now_flag === '1'
-  );
-  if (currentIdx === -1) {
-    currentIdx = stationList.findIndex(s =>
-      !(s.pass_flag == 1 || s.pass_flag === true || s.pass_flag === '1')
-    );
+  // Detect current station
+  let currIdx = list.findIndex(s => s.now_flag == 1 || s.now_flag === true || s.now_flag === '1');
+  if (currIdx === -1) {
+    currIdx = list.findIndex(s => !(s.pass_flag == 1 || s.pass_flag === true || s.pass_flag === '1'));
   }
 
-  for (let i = 0; i < stationList.length; i++) {
-    const s      = stationList[i];
-    const stnId  = String(s.station_no ?? s.stationNo ?? s.id ?? i + 1);
+  list.forEach((s, i) => {
+    const stnId  = String(s.station_no ?? s.stationNo ?? s.id ?? (i + 1));
     const enName = stationName(stnId);
+    const stops  = !(s.stop_flag == 0 || s.stop_flag === false || s.stop_flag === '0');
+    const passed = (s.pass_flag == 1 || s.pass_flag === true || s.pass_flag === '1');
+    const isCurr = (i === currIdx);
 
-    const stops   = !(s.stop_flag == 0 || s.stop_flag === false || s.stop_flag === '0');
-    const passed  = (s.pass_flag == 1 || s.pass_flag === true || s.pass_flag === '1');
-    const isCurr  = (i === currentIdx);
+    let state = 'upcoming';
+    if (!stops)     state = 'skip';
+    else if (isCurr) state = 'current';
+    else if (passed) state = 'passed';
 
-    let state;
-    if (!stops)          state = 'skip';
-    else if (isCurr)     state = 'current';
-    else if (passed)     state = 'passed';
-    else                 state = 'upcoming';
+    const arr = formatTime(s.arr_time ?? s.arrTime ?? s.arrive_time);
+    const dep = formatTime(s.dep_time ?? s.depTime ?? s.departure_time);
+    const trk = s.track_no ?? s.trackNo ?? null;
 
-    const arrTime = formatTime(s.arr_time ?? s.arrTime ?? s.arrive_time);
-    const depTime = formatTime(s.dep_time ?? s.depTime ?? s.departure_time);
-
-    // Platform from trackNo in config if available
-    const track = s.track_no ?? s.trackNo ?? null;
-
-    const row = document.createElement('div');
-    row.className = `station-row state-${state}`;
-
-    row.innerHTML = `
-      <div class="station-dot-wrap">
-        <div class="station-dot"></div>
-      </div>
-      <div class="station-info">
-        <span class="station-name-ja">${enName}</span>
-        <span class="station-name-en">STN ${stnId}</span>
-        ${isCurr ? '<span class="current-badge">▶ Now</span>' : ''}
-        ${track != null ? `<span class="platform-badge">Track ${track}</span>` : ''}
-      </div>
-      <div class="station-times">
-        ${arrTime ? `<span class="station-time arr"><span class="time-label">Arr</span>${arrTime}</span>` : ''}
-        ${depTime ? `<span class="station-time dep"><span class="time-label">Dep</span>${depTime}</span>` : ''}
-      </div>
-    `;
-
-    stationsList.appendChild(row);
-  }
+    stationsList.appendChild(makeStationRow(stnId, enName, state, arr, dep, isCurr, trk));
+  });
 }
 
 // ─────────────────────────────────────────────────────
-// Fallback: render from location data (if train_info returns no list)
-// Uses stationOrder from config + current location from LOCATION data
+// Fallback route: use station order + live location
 // ─────────────────────────────────────────────────────
-function renderLocationFallback(trainType) {
-  if (!CONFIG || !selectedTrain) return;
+function renderRouteFallback(trainType, bound, trainNumber) {
+  stationsList.innerHTML = '';
+  routeLine.style.background =
+    `linear-gradient(to bottom, var(--muted) 0%, ${typeMeta(trainType).color}99 100%)`;
 
-  const stationOrder = CONFIG.stationOrder || [];
-  const bound        = String(selectedTrain.bound);
-  const ordered      = bound === '2' ? stationOrder : [...stationOrder].reverse();
+  const order   = stationOrder();
+  const bk      = String(bound);
+  const ordered = bk === '2' ? order : [...order].reverse();
 
-  // Find where this train is in the location data
-  const locData = LOCATION?.trainLocationInfo;
-  let currentStnId = null;
-  let isBetween = false;
+  // Find live position from LOCATION
+  let currStnId  = null;
+  let isBetween  = false;
+  let nextStnId  = null;
 
-  for (const section of [locData?.atStation, locData?.betweenStation]) {
-    const entries = section?.bounds?.[bound] || [];
-    for (const entry of entries) {
-      for (const t of (entry.trains || [])) {
-        if (String(t.trainNumber) === String(selectedTrain.trainNumber)) {
-          currentStnId = String(entry.station);
-          isBetween    = section === locData?.betweenStation;
+  if (LOCATION?.trainLocationInfo) {
+    const loc = LOCATION.trainLocationInfo;
+    for (const [sectionKey, section] of Object.entries({at: loc.atStation, between: loc.betweenStation})) {
+      for (const entry of (section?.bounds?.[bk] || [])) {
+        for (const t of (entry.trains || [])) {
+          if (String(t.trainNumber) === String(trainNumber)) {
+            currStnId = String(entry.station);
+            isBetween = sectionKey === 'between';
+          }
         }
       }
     }
   }
 
-  // Commercial train stop patterns (from config)
-  const commercialTypes = CONFIG.commercialTrains || [];
+  // If between stations, the next station in the route direction is currStnId
+  // The "current" dot = the station before, "next" = currStnId
+  const currPosIdx = ordered.indexOf(currStnId);
 
-  for (const stnId of ordered) {
+  ordered.forEach((stnId, i) => {
     const enName = stationName(stnId);
-    const stnIdx = ordered.indexOf(stnId);
-    const currIdx = ordered.indexOf(currentStnId);
-
-    const passed  = currIdx >= 0 && stnIdx < currIdx;
-    const isCurr  = stnId === currentStnId && !isBetween;
-    const isBefore = isBetween && stnIdx === currIdx; // train is approaching next
+    const passed = currPosIdx >= 0 && (isBetween ? i < currPosIdx : i < currPosIdx);
+    const isCurr = !isBetween && stnId === currStnId;
+    const isNext = isBetween && stnId === currStnId;
+    const isFirst = i === 0;
+    const isLast  = i === ordered.length - 1;
 
     let state = 'upcoming';
-    if (isCurr)         state = 'current';
-    else if (isBefore)  state = 'current';  // approaching
-    else if (passed)    state = 'passed';
+    if (passed)  state = 'passed';
+    if (isCurr)  state = 'current';
 
-    const row = document.createElement('div');
-    row.className = `station-row state-${state}`;
-    row.innerHTML = `
-      <div class="station-dot-wrap"><div class="station-dot"></div></div>
-      <div class="station-info">
-        <span class="station-name-ja">${enName}</span>
-        <span class="station-name-en">STN ${stnId}</span>
-        ${isCurr ? '<span class="current-badge">▶ Now</span>' : ''}
-        ${isBetween && stnIdx === currIdx + 1 ? '<span class="current-badge" style="background:var(--blue);color:#fff">→ Next</span>' : ''}
-      </div>
-      <div class="station-times"></div>
-    `;
+    const row = makeStationRow(stnId, enName, state, null, null, isCurr, null);
+
+    // Override badge for "next" station when between
+    if (isNext) {
+      const badge = row.querySelector('.current-badge');
+      if (badge) { badge.textContent = '→ Next'; badge.style.background = 'var(--blue)'; badge.style.color = '#fff'; }
+      else {
+        const info = row.querySelector('.station-info');
+        const nb = document.createElement('span');
+        nb.className = 'current-badge';
+        nb.style.cssText = 'background:var(--blue);color:#fff';
+        nb.textContent = '→ Next';
+        info.appendChild(nb);
+      }
+    }
+
+    // Terminus labels
+    if (isFirst || isLast) {
+      const info = row.querySelector('.station-info');
+      const tb = document.createElement('span');
+      tb.className = 'terminus-badge';
+      tb.textContent = isFirst ? 'Origin' : 'Terminus';
+      info.appendChild(tb);
+    }
+
     stationsList.appendChild(row);
-  }
+  });
 
-  // Add notice
+  // Notice
   const notice = document.createElement('p');
-  notice.style.cssText = 'margin-top:1rem;font-family:var(--font-mono);font-size:0.68rem;color:var(--muted);text-align:center;';
-  notice.textContent = '⚠ Timetable unavailable — showing live position only';
-  routeSection.appendChild(notice);
+  notice.className = 'fallback-notice';
+  notice.textContent = '⚠ No timetable — position from live map only';
+  detailPanel.appendChild(notice);
 }
 
 // ─────────────────────────────────────────────────────
-// Extract station list from various API response shapes
+// Build a single station row element
+// ─────────────────────────────────────────────────────
+function makeStationRow(stnId, enName, state, arr, dep, isCurr, track) {
+  const row = document.createElement('div');
+  row.className = `station-row state-${state}`;
+  row.dataset.stationId = stnId;
+
+  row.innerHTML = `
+    <div class="station-dot-wrap"><div class="station-dot"></div></div>
+    <div class="station-info">
+      <span class="station-name-en">${enName}</span>
+      ${isCurr ? '<span class="current-badge">▶ Now</span>' : ''}
+      ${track != null ? `<span class="platform-badge">Track ${track}</span>` : ''}
+    </div>
+    <div class="station-times">
+      ${arr ? `<span class="station-time arr"><span class="time-label">Arr</span>${arr}</span>` : ''}
+      ${dep ? `<span class="station-time dep"><span class="time-label">Dep</span>${dep}</span>` : ''}
+    </div>
+  `;
+  return row;
+}
+
+// ─────────────────────────────────────────────────────
+// Extract station list from API response
 // ─────────────────────────────────────────────────────
 function extractStationList(data) {
   if (!data) return null;
   if (Array.isArray(data)) return data;
-
-  // Common keys observed in JR Central API
   for (const key of ['list', 'stationList', 'stations', 'stop']) {
     const v = data[key] ?? data.trainInfo?.[key] ?? data.train?.[key];
     if (Array.isArray(v) && v.length) return v;
   }
-
-  // Search all top-level arrays
   for (const key of Object.keys(data)) {
     const v = data[key];
     if (Array.isArray(v) && v.length > 2 &&
-        (v[0].station_no != null || v[0].stationNo != null ||
-         v[0].arr_time != null   || v[0].dep_time != null)) {
+        (v[0]?.station_no != null || v[0]?.arr_time != null || v[0]?.dep_time != null)) {
       return v;
     }
   }
-
   return null;
 }
 
 // ─────────────────────────────────────────────────────
-// Event: fetch button
+// Fetch button
 // ─────────────────────────────────────────────────────
 fetchBtn.addEventListener('click', () => {
   const raw = trainSelect.value;
   if (!raw) return;
   try {
-    const { trainNumber, train, delay } = JSON.parse(raw);
-    const bound = boundSelect.value;
-
-    // Highlight in sidebar
+    const { trainNumber, train, delay, bound } = JSON.parse(raw);
     document.querySelectorAll('.live-train-row.active').forEach(r => r.classList.remove('active'));
     const sideRow = liveList.querySelector(`[data-train-number="${trainNumber}"]`);
     if (sideRow) { sideRow.classList.add('active'); sideRow.scrollIntoView({ block: 'nearest' }); }
-
-    selectTrain(trainNumber, train, bound, delay);
-  } catch (e) { console.error(e); }
+    selectTrain(trainNumber, train, bound || boundSelect.value, delay);
+    if (isMobile()) showMobileDetail();
+  } catch(e) { console.error(e); }
 });
 
-// Event: manual refresh
 refreshBtn.addEventListener('click', async () => {
-  refreshBtn.textContent = '↻';
   refreshBtn.disabled = true;
-  await refreshLocation();
-  refreshBtn.textContent = '↺';
+  try {
+    const loc = await proxyFetch(jrcUrl('var/train_info/train_location_info.json'));
+    LOCATION = loc;
+    populateLiveList(loc);
+    if (selectedTrain) {
+      const r = liveList.querySelector(`[data-train-number="${selectedTrain.trainNumber}"]`);
+      if (r) r.classList.add('active');
+    }
+  } catch(e) { console.warn(e); }
   refreshBtn.disabled = false;
 });
 
