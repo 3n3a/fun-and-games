@@ -23,7 +23,6 @@
           <span class="logo-en">LIVE TRACKER</span>
         </div>
         <div class="header-controls">
-
           <div class="picker-group">
             <label class="picker-label" for="bound-select">Direction</label>
             <select id="bound-select">
@@ -31,19 +30,16 @@
               <option value="1">← East bound</option>
             </select>
           </div>
-
           <div class="picker-group">
             <label class="picker-label" for="train-select">Train</label>
             <select id="train-select" disabled>
               <option value="">— loading —</option>
             </select>
           </div>
-
           <button id="fetch-btn" class="fetch-btn" disabled>
             <span class="btn-spin" id="btn-spin">⟳</span>
             <span>Track</span>
           </button>
-
           <button id="refresh-btn" class="refresh-btn" title="Refresh live train list">↺</button>
         </div>
       </div>
@@ -52,9 +48,13 @@
 
   <!-- ── SERVICE STATUS BAR ──────────────────────── -->
   <div id="status-bar" class="status-bar hidden">
-    <div class="container">
-      <span id="status-text"></span>
-    </div>
+    <div class="container"><span id="status-text"></span></div>
+  </div>
+
+  <!-- ── MOBILE TABS ─────────────────────────────── -->
+  <div class="mobile-tabs">
+    <button id="tab-list" class="mobile-tab active">📋 Trains</button>
+    <button id="tab-detail" class="mobile-tab">🗺 Route</button>
   </div>
 
   <!-- ── MAIN ────────────────────────────────────── -->
@@ -73,6 +73,9 @@
 
     <!-- Right: selected train detail -->
     <section class="detail-panel">
+
+      <!-- Mobile back button -->
+      <button id="back-btn" class="back-btn hidden">← Back to trains</button>
 
       <div id="train-header" class="train-meta hidden">
         <div class="meta-badge">
@@ -128,7 +131,7 @@
 
   <footer class="site-footer">
     <div class="container">
-      <p>Data: <strong>JR Central</strong> public API · For informational use only · Auto-refreshes every 60s</p>
+      <p>Data: <strong>JR Central</strong> public API · Informational use only · Auto-refreshes every 60s</p>
     </div>
   </footer>
 
