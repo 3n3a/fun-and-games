@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Webcam Viewer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Webcam Viewer</h1>
+
+    <details>
+      <summary>Settings</summary>
+      <label>CORS Proxy URL
+        <input type="text" id="proxyInput" placeholder="https://corsproxy.io/?url=">
+      </label>
+      <small>Leave empty for no proxy. Append the format your proxy expects (e.g. <code>https://corsproxy.io/?url=</code>)</small>
+    </details>
+
+    <div id="cams"></div>
+  </main>
+
+  <script>
+    // ──────────────────────────────────────────────
+    // CONFIGURATION – edit these two values
+    // ──────────────────────────────────────────────
+    const CORS_PROXY = 'https://corsproxy.io/?url=';  // default proxy, editable via UI
+
+    const CAMS = [
+      {
+        name: 'Stadt Luzern – vc106',
+        url: 'https://vif.lu.ch/downloads/vif/WebCam/StadtLuzern/vc106.jpg'
+      },
+      {
+        name: 'Stadt Luzern – vc107',
+        url: 'https://vif.lu.ch/downloads/vif/WebCam/StadtLuzern/vc107.jpg'
+      },
+      {
+        name: 'Stadt Luzern – vc108',
+        url: 'https://vif.lu.ch/downloads/vif/WebCam/StadtLuzern/vc108.jpg'
+      }
+    ];
+    // ──────────────────────────────────────────────
+
+    const proxyInput = document.getElementById('proxyInput');
+    proxyInput.value = CORS_PROXY;
+
+    function getProxy() {
+      return proxyInput.value.trim();
+    }
+
+    function buildUrl(baseUrl) {
+      const ts = Date.now();
+      const sep = baseUrl.includes('?') ? '&' : '?';
+      const full = `${baseUrl}${sep}d=${ts}`;
+      const proxy = getProxy();
+      return proxy ? `${proxy}${encodeURIComponent(full)}` : full;
+    }
+
+    // Build DOM
+    const container = document.getElementById('cams');
+
+    CAMS.forEach((cam, i) => {
+      const article = document.createElement('article');
+      article.innerHTML = `
+        <header><strong>${cam.name}</strong></header>
+        <img id="cam-${i}" src="" alt="${cam.name}" style="width:100%; border-radius: 4px;">
+      `;
+      container.appendChild(article);
+    });
+
+    // Refresh loop
+    function refresh() {
+      CAMS.forEach((cam, i) => {
+        const img = document.getElementById(`cam-${i}`);
+        img.src = buildUrl(cam.url);
+      });
+    }
+
+    refresh();
+    setInterval(refresh, 1000);
+  </script>
+</body>
+</html>
