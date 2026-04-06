@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guitar Rhythm Minigame</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+        }
+        h1 {
+            color: #f1c40f;
+        }
+        #game-container {
+            background-color: #34495e;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+        }
+        #guitar-display {
+            font-size: 4em;
+            margin: 20px 0;
+            color: #2ecc71;
+            min-height: 60px;
+            transition: transform 0.1s;
+        }
+        .note {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+            margin: 5px;
+            cursor: pointer;
+            transition: background-color 0.1s;
+        }
+        .note:hover {
+            background-color: #c0392b;
+        }
+        #controls button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            margin: 10px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #start-btn {
+            background-color: #3498db;
+            color: white;
+        }
+        #start-btn:hover {
+            background-color: #2980b9;
+        }
+        #feedback {
+            margin-top: 20px;
+            font-size: 1.5em;
+            min-height: 30px;
+            font-weight: bold;
+        }
+        .success {
+            color: #2ecc71;
+        }
+        .fail {
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>🎸 Guitar Rhythm Challenge 🎸</h1>
+        <p>Click the notes exactly when they appear to play the chord!</p>
+
+        <div id="guitar-display">
+            <!-- Notes will appear here -->
+        </div>
+
+        <div id="controls">
+            <button id="start-btn">Start Game</button>
+        </div>
+
+        <div id="feedback">Ready to play!</div>
+    </div>
+
+    <script>
+        const guitarDisplay = document.getElementById('guitar-display');
+        const startBtn = document.getElementById('start-btn');
+        const feedbackDisplay = document.getElementById('feedback');
+
+        let score = 0;
+        let isGameActive = false;
+        let currentNotes = [];
+        let gameInterval;
+        let noteTimer;
+
+        // --- Game Configuration ---
+        const NOTE_DURATION_MS = 500; // How long the note stays visible
+        const NOTE_INTERVAL_MS = 1000; // Time between notes
+
+        function generateNotes() {
+            // Define a simple chord sequence (e.g., C Major: C, E, G)
+            const chordNotes = ['C', 'E', 'G'];
+            currentNotes = [];
+            guitarDisplay.innerHTML = '';
+            
+            for (let i = 0; i < 5; i++) { // Generate 5 notes per round
+                const noteType = chordNotes[Math.floor(Math.random() * chordNotes.length)];
+                const noteElement = document.createElement('span');
+                noteElement.className = 'note';
+                noteElement.textContent = noteType;
+                noteElement.dataset.type = noteType;
+                noteElement.dataset.index = i;
+                noteElement.addEventListener('click', handleNoteClick);
+                guitarDisplay.appendChild(noteElement);
+                currentNotes.push({ element: noteElement, type: noteType, startTime: Date.now() });
+            }
+        }
+
+        function startGame() {
+            if (isGameActive) return;
+            isGameActive = true;
+            score = 0;
+            feedbackDisplay.textContent = "Playing...";
+            feedbackDisplay.className = '';
+            startBtn.disabled = true;
+            startBtn.textContent = "Playing...";
+            
+            generateNotes();
+            
+            // Start the rhythm generation loop
+            gameInterval = setInterval(generateNextNote, NOTE_INTERVAL_MS);
+        }
+
+        function generateNextNote() {
+            if (!isGameActive) return;
+
+            // 1. Remove the previous note element (cleanup)
+            if (guitarDisplay.children.length > 0) {
+                guitarDisplay.removeChild(guitarDisplay.firstChild);
+            }
+
+            // 2. Generate a new note
+            const chordNotes = ['C', 'E', 'G'];
+            const noteType = chordNotes[Math.floor(Math.random() * chordNotes.length)];
+            
+            const noteElement = document.createElement('span');
+            noteElement.className = 'note';
+            noteElement.textContent = noteType;
+            noteElement.dataset.type = noteType;
+            noteElement.dataset.index = Date.now(); // Unique ID for timing
+            noteElement.addEventListener('click', handleNoteClick);
+            guitarDisplay.appendChild(noteElement);
+
+            // 3. Set up the timer for the note to disappear
+            noteTimer = setTimeout(() => {
+                if (guitarDisplay.contains(noteElement)) {
+                    guitarDisplay.removeChild(noteElement);
+                }
+            }, NOTE_DURATION_MS);
+        }
+
+        function handleNoteClick(event) {
+            if (!isGameActive) return;
+
+            const clickedNote = event.target;
+            const currentTime = Date.now();
+            
+            // Check if the click happened within the acceptable window (e.g., within 100ms of the note appearing)
+            const noteStartTime = clickedNote.dataset.index;
+            const noteAppearanceTime = noteStartTime - (NOTE_DURATION_MS / 2); // Estimate when the note should have appeared
+
+            if (currentTime >= noteAppearanceTime && currentTime <= noteAppearanceTime + NOTE_DURATION_MS) {
+                score++;
+                feedbackDisplay.textContent = `Correct! ${clickedNote.textContent}!`;
+                feedbackDisplay.className = 'success';
+                
+                // Remove the note immediately upon correct hit
+                clickedNote.remove();
+                
+                // Stop the current note timer
+                clearTimeout(noteTimer);
+                
+                // If all notes are gone, end the round
+                if (guitarDisplay.children.length === 0) {
+                    endRound();
+                }
+            } else {
+                feedbackDisplay.textContent = "Too early or too late!";
+                feedbackDisplay.className = 'fail';
+                // Optional: penalize or just ignore the click
+            }
+        }
+
+        function endRound() {
+            clearInterval(gameInterval);
+            isGameActive = false;
+            startBtn.disabled = false;
+            startBtn.textContent = "Play Again";
+            
+            feedbackDisplay.textContent = `Round Complete! Your Score: ${score}. Click Start to play again!`;
+            feedbackDisplay.className = '';
+        }
+
+        // --- Event Listeners ---
+        startBtn.addEventListener('click', startGame);
+
+    </script>
+</body>
+</html>
