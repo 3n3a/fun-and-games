@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Abfallkübel Luzern · OGD-Karte</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --ink:#12161C;
+    --ink2:#5B6675;
+    --line:#E4E9F0;
+    --panel:#FFFFFF;
+    --luzern:#0A5CA8;
+    --luzern-2:#1E6FBE;
+    --amber:#E39A2B;
+    --ok:#1F9D6B;
+    --danger:#C63B4A;
+    --shadow:0 12px 34px -12px rgba(10,37,64,.34), 0 2px 8px -3px rgba(10,37,64,.18);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    font-family:"Space Grotesk", system-ui, sans-serif;
+    color:var(--ink);
+    background:#DfE4EA;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  #map{ position:absolute; inset:0; }
+
+  /* ---------- Station panel ---------- */
+  .panel{
+    position:absolute;
+    top:16px; left:16px;
+    width:312px;
+    max-width:calc(100vw - 32px);
+    max-height:calc(100vh - 32px);
+    overflow:auto;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    z-index:5;
+    overscroll-behavior:contain;
+  }
+  .panel__head{
+    padding:18px 20px 16px;
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    font-weight:500;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--ink2);
+    display:flex; align-items:center; gap:8px;
+  }
+  .eyebrow .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--amber);
+    box-shadow:0 0 0 0 rgba(227,154,43,.55);
+  }
+  .eyebrow .dot.is-live{ animation:pulse 1.6s ease-out infinite; }
+  .eyebrow .dot.is-done{ background:var(--ok); animation:none; }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(227,154,43,.5); }
+    70%{ box-shadow:0 0 0 8px rgba(227,154,43,0); }
+    100%{ box-shadow:0 0 0 0 rgba(227,154,43,0); }
+  }
+  h1{
+    margin:10px 0 3px;
+    font-size:27px;
+    font-weight:700;
+    letter-spacing:-.02em;
+    line-height:1.05;
+  }
+  .sub{ margin:0; font-size:12.5px; color:var(--ink2); line-height:1.4; }
+
+  .count{
+    padding:16px 20px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:10px;
+  }
+  .count__num{
+    font-family:"IBM Plex Mono", monospace;
+    font-weight:600;
+    font-size:42px;
+    letter-spacing:-.03em;
+    line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .count__label{
+    font-size:12px; color:var(--ink2);
+    text-transform:uppercase; letter-spacing:.06em;
+  }
+
+  .types{ padding:14px 20px 8px; }
+  .types__title{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink2); margin-bottom:10px;
+  }
+  .trow{
+    display:flex; align-items:center; gap:10px;
+    padding:7px 0;
+    border-bottom:1px dashed var(--line);
+  }
+  .trow:last-child{ border-bottom:0; }
+  .trow__sw{
+    width:9px; height:9px; border-radius:2px; flex:none;
+    background:var(--luzern);
+  }
+  .trow__name{
+    font-size:12.5px; line-height:1.25; flex:1 1 auto;
+    color:var(--ink);
+  }
+  .trow__n{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12.5px; font-weight:500;
+    color:var(--ink2);
+    font-variant-numeric:tabular-nums;
+  }
+
+  .foot{
+    padding:12px 20px 16px;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10px; letter-spacing:.03em;
+    color:var(--ink2); line-height:1.6;
+  }
+  .foot a{ color:var(--luzern); text-decoration:none; }
+  .foot a:hover{ text-decoration:underline; }
+
+  /* ---------- states ---------- */
+  .skeleton{ padding:16px 20px; }
+  .sk{ height:12px; border-radius:6px; background:linear-gradient(90deg,#EEF2F7,#F7F9FC,#EEF2F7); background-size:200% 100%; animation:sh 1.2s linear infinite; margin:9px 0; }
+  @keyframes sh{ 0%{ background-position:200% 0; } 100%{ background-position:-200% 0; } }
+
+  .error{
+    margin:16px 20px;
+    padding:14px;
+    border:1px solid #F2C9CF;
+    background:#FCF1F2;
+    border-radius:10px;
+    font-size:12.5px; line-height:1.5;
+    color:#7A2530;
+  }
+  .error b{ color:var(--danger); }
+  .error code{
+    display:block; margin:8px 0;
+    font-family:"IBM Plex Mono", monospace; font-size:10.5px;
+    word-break:break-all; color:#93313c;
+  }
+  .btn{
+    margin-top:6px;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px; letter-spacing:.04em;
+    padding:8px 12px; border-radius:8px;
+    border:1px solid var(--danger); background:#fff; color:var(--danger);
+    cursor:pointer;
+  }
+  .btn:hover{ background:var(--danger); color:#fff; }
+
+  .hidden{ display:none !important; }
+
+  /* ---------- MapLibre chrome ---------- */
+  .maplibregl-ctrl-group{ border-radius:12px !important; box-shadow:var(--shadow) !important; border:1px solid var(--line) !important; }
+  .maplibregl-ctrl-attrib{
+    font-family:"IBM Plex Mono", monospace !important;
+    font-size:10px !important;
+    background:rgba(255,255,255,.82) !important;
+    border-radius:8px 0 0 0 !important;
+  }
+
+  /* ---------- Popup ---------- */
+  .maplibregl-popup-content{
+    font-family:"Space Grotesk", sans-serif;
+    border-radius:12px;
+    padding:0; overflow:hidden;
+    border:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .maplibregl-popup-close-button{ font-size:17px; color:var(--ink2); padding:2px 7px; }
+  .pop__head{
+    background:var(--luzern);
+    color:#fff; padding:11px 14px;
+    font-weight:600; font-size:13.5px; line-height:1.2;
+  }
+  .pop__body{ padding:11px 14px 13px; }
+  .pop__row{ display:flex; justify-content:space-between; gap:14px; padding:4px 0; font-size:12px; }
+  .pop__k{ color:var(--ink2); }
+  .pop__v{ font-weight:500; text-align:right; }
+  .pop__id{
+    margin-top:8px; padding-top:8px; border-top:1px dashed var(--line);
+    font-family:"IBM Plex Mono", monospace; font-size:10.5px; color:var(--ink2);
+    letter-spacing:.03em;
+  }
+
+  @media (max-width:560px){
+    .panel{ top:12px; left:12px; right:12px; width:auto; max-width:none; }
+    h1{ font-size:23px; }
+    .count__num{ font-size:36px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .eyebrow .dot.is-live{ animation:none; }
+    .sk{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<aside class="panel" aria-label="Abfallkübel Übersicht">
+  <div class="panel__head">
+    <div class="eyebrow"><span class="dot is-live" id="statusDot"></span><span id="statusText">OGD · Stadt Luzern</span></div>
+    <h1>Abfallkübel</h1>
+    <p class="sub">Öffentliche Abfalleimer im Stadtgebiet Luzern — live aus dem WFS-Dienst.</p>
+  </div>
+
+  <div class="count">
+    <span class="count__num" id="count">—</span>
+    <span class="count__label">Standorte<br>erfasst</span>
+  </div>
+
+  <div id="typesWrap" class="types hidden">
+    <div class="types__title">Nach Typ</div>
+    <div id="typeList"></div>
+  </div>
+
+  <div id="skeleton" class="skeleton">
+    <div class="sk" style="width:70%"></div>
+    <div class="sk" style="width:90%"></div>
+    <div class="sk" style="width:55%"></div>
+  </div>
+
+  <div id="error" class="error hidden">
+    <b>Daten konnten nicht geladen werden.</b>
+    Der WFS-Dienst hat die Anfrage aus dem Browser blockiert (meist CORS) oder ist nicht erreichbar.
+    <code id="errCode"></code>
+    <button class="btn" id="retry">Erneut versuchen</button>
+  </div>
+
+  <div class="foot">
+    Basiskarte © <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> · <a href="https://openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><br>
+    Daten © Stadt Luzern, Open Government Data
+  </div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+<script>
+/* ---- Swiss LV95 (EPSG:2056) definition for proj4 ---- */
+proj4.defs("EPSG:2056",
+  "+proj=somerc +lat_0=46.9524055555556 +lon_0=7.43958333333333 +k_0=1 " +
+  "+x_0=2600000 +y_0=1200000 +ellps=bessel " +
+  "+towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs +type=crs");
+const toWGS = proj4("EPSG:2056", "EPSG:4326");
+
+const WFS_URL =
+  "https://map.stadtluzern.ch/server/services/OGD/abfallkuebel/MapServer/WFSServer" +
+  "?SERVICE=WFS&REQUEST=GetFeature&VERSION=2.0.0" +
+  "&TYPENAMES=esri%3AAbfallk%C3%BCbel&OUTPUTFORMAT=GEOJSON&SRSNAME=EPSG%3A2056";
+
+/* ---- Custom trash-can pin, rasterised for crisp retina rendering ---- */
+const PIN_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="96" viewBox="0 0 36 48">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E6FBE"/><stop offset="1" stop-color="#0A5CA8"/>
+    </linearGradient>
+    <filter id="s" x="-40%" y="-15%" width="180%" height="150%">
+      <feDropShadow dx="0" dy="1.4" stdDeviation="1.3" flood-color="#0A2540" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <path d="M18 47C18 47 33 30 33 17A15 15 0 1 0 3 17C3 30 18 47 18 47Z" fill="url(#g)" filter="url(#s)"/>
+  <circle cx="18" cy="17" r="10.5" fill="#fff"/>
+  <g transform="translate(10 9) scale(0.667)" fill="none" stroke="#0A5CA8"
+     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 6h18"/>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
+    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    <path d="M10 11v6"/><path d="M14 11v6"/>
+  </g>
+</svg>`;
+
+function makeIconData(svg, w, h, ratio){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = w * ratio; c.height = h * ratio;
+      const cx = c.getContext("2d");
+      cx.drawImage(img, 0, 0, w * ratio, h * ratio);
+      resolve(cx.getImageData(0, 0, w * ratio, h * ratio));
+    };
+    img.onerror = reject;
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  });
+}
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/positron",
+  center: [8.3093, 47.0502],   // Luzern
+  zoom: 12.4,
+  attributionControl: false
+});
+map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+
+const $ = (id) => document.getElementById(id);
+
+map.on("load", async () => {
+  try {
+    const icon = await makeIconData(PIN_SVG, 36, 48, 2);
+    if (!map.hasImage("bin")) map.addImage("bin", icon, { pixelRatio: 2 });
+  } catch (_) {}
+
+  map.addSource("bins", {
+    type: "geojson",
+    data: { type: "FeatureCollection", features: [] },
+    cluster: true,
+    clusterRadius: 52,
+    clusterMaxZoom: 16
+  });
+
+  map.addLayer({
+    id: "clusters", type: "circle", source: "bins",
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": ["step", ["get", "point_count"], "#2E7DC4", 25, "#0A5CA8", 100, "#083F74"],
+      "circle-radius": ["step", ["get", "point_count"], 16, 25, 21, 100, 27, 500, 34],
+      "circle-stroke-width": 3,
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-opacity": 0.9
+    }
+  });
+  map.addLayer({
+    id: "cluster-count", type: "symbol", source: "bins",
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": ["get", "point_count_abbreviated"],
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 13
+    },
+    paint: { "text-color": "#ffffff" }
+  });
+  map.addLayer({
+    id: "bins-point", type: "symbol", source: "bins",
+    filter: ["!", ["has", "point_count"]],
+    layout: {
+      "icon-image": "bin",
+      "icon-size": 0.6,
+      "icon-anchor": "bottom",
+      "icon-allow-overlap": true
+    }
+  });
+
+  // interactions
+  map.on("click", "clusters", async (e) => {
+    const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] })[0];
+    const id = f.properties.cluster_id;
+    const src = map.getSource("bins");
+    try {
+      const zoom = await src.getClusterExpansionZoom(id);
+      map.easeTo({ center: f.geometry.coordinates, zoom });
+    } catch (_) {}
+  });
+
+  map.on("click", "bins-point", (e) => {
+    const p = e.features[0].properties;
+    const coords = e.features[0].geometry.coordinates.slice();
+    const row = (k, v) => `<div class="pop__row"><span class="pop__k">${k}</span><span class="pop__v">${v || "–"}</span></div>`;
+    const html =
+      `<div class="pop__head">${p.TYP_TEXT || "Abfallkübel"}</div>` +
+      `<div class="pop__body">` +
+        row("Leerung Werktags", p.LEERUNG_WERKTAGS_TEXT) +
+        row("Leerung Wochenende", p.LEERUNG_WOCHENENDE_TEXT) +
+        row("Alter", p.ALTER_ABFALLKUEBEL_TEXT) +
+        `<div class="pop__id">OBJECTID ${p.OBJECTID ?? "–"}</div>` +
+      `</div>`;
+    new maplibregl.Popup({ offset: 26, maxWidth: "260px" })
+      .setLngLat(coords).setHTML(html).addTo(map);
+  });
+
+  for (const l of ["clusters", "bins-point"]) {
+    map.on("mouseenter", l, () => map.getCanvas().style.cursor = "pointer");
+    map.on("mouseleave", l, () => map.getCanvas().style.cursor = "");
+  }
+
+  loadData();
+});
+
+async function loadData(){
+  $("error").classList.add("hidden");
+  $("skeleton").classList.remove("hidden");
+  $("statusDot").className = "dot is-live";
+  $("statusText").textContent = "Lade Daten …";
+
+  try {
+    const res = await fetch(WFS_URL, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const fc = await res.json();
+
+    // reproject EPSG:2056 -> WGS84 (lng/lat)
+    const feats = [];
+    for (const f of (fc.features || [])) {
+      if (!f.geometry || f.geometry.type !== "Point") continue;
+      const [x, y] = f.geometry.coordinates;
+      f.geometry.coordinates = toWGS.forward([x, y]);
+      feats.push(f);
+    }
+    const clean = { type: "FeatureCollection", features: feats };
+    map.getSource("bins").setData(clean);
+
+    // fit to data
+    if (feats.length) {
+      const b = new maplibregl.LngLatBounds();
+      feats.forEach(f => b.extend(f.geometry.coordinates));
+      map.fitBounds(b, { padding: { top: 60, bottom: 60, left: 350, right: 60 }, maxZoom: 15, duration: 900 });
+    }
+
+    renderPanel(feats);
+    $("skeleton").classList.add("hidden");
+    $("statusDot").className = "dot is-done";
+    $("statusText").textContent = "Live · aktuell";
+  } catch (err) {
+    $("skeleton").classList.add("hidden");
+    $("error").classList.remove("hidden");
+    $("errCode").textContent = err.message + " — " + WFS_URL;
+    $("statusDot").className = "dot";
+    $("statusText").textContent = "Fehler";
+  }
+}
+
+function renderPanel(feats){
+  // animated count-up (Swiss number formatting)
+  const target = feats.length;
+  const el = $("count");
+  const t0 = performance.now(), dur = 900;
+  (function tick(now){
+    const k = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(target * eased).toLocaleString("de-CH");
+    if (k < 1) requestAnimationFrame(tick);
+  })(t0);
+
+  // group by type
+  const groups = new Map();
+  for (const f of feats) {
+    const key = f.properties.TYP_TEXT || "Unbekannt";
+    groups.set(key, (groups.get(key) || 0) + 1);
+  }
+  const rows = [...groups.entries()].sort((a, b) => b[1] - a[1]);
+  $("typeList").innerHTML = rows.map(([name, n]) =>
+    `<div class="trow"><span class="trow__sw"></span>` +
+    `<span class="trow__name">${name}</span>` +
+    `<span class="trow__n">${n.toLocaleString("de-CH")}</span></div>`
+  ).join("");
+  $("typesWrap").classList.remove("hidden");
+}
+
+$("retry").addEventListener("click", loadData);
+</script>
+</body>
+</html>
