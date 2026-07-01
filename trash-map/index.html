@@ -118,32 +118,54 @@
     text-transform:uppercase; letter-spacing:.06em;
   }
 
-  .types{ padding:14px 20px 8px; }
+  .types{ padding:14px 20px 10px; }
   .types__title{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
     font-family:"IBM Plex Mono", monospace;
     font-size:10.5px; letter-spacing:.16em; text-transform:uppercase;
-    color:var(--ink2); margin-bottom:10px;
+    color:var(--ink2); margin-bottom:4px;
   }
+  .types__reset{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10px; letter-spacing:.05em;
+    display:flex; align-items:center; gap:5px;
+    border:0; background:none; cursor:pointer;
+    color:var(--luzern); padding:3px 5px; border-radius:6px;
+  }
+  .types__reset:hover{ background:#EAF2FB; }
+  .types__reset svg{ width:12px; height:12px; }
+  .types__hint{ font-size:11px; color:var(--ink2); margin:0 0 6px; line-height:1.3; }
   .trow{
     display:flex; align-items:center; gap:10px;
-    padding:7px 0;
+    padding:8px; margin:0 -8px;
+    border-radius:8px;
     border-bottom:1px dashed var(--line);
+    cursor:pointer;
+    transition:background .12s ease;
+    outline:none;
   }
+  .trow:hover{ background:#F3F7FB; }
+  .trow:focus-visible{ box-shadow:0 0 0 2px var(--luzern); }
+  .trow.is-active{ background:#E7F0FB; }
   .trow:last-child{ border-bottom:0; }
   .trow__sw{
     width:9px; height:9px; border-radius:2px; flex:none;
     background:var(--luzern);
+    transition:box-shadow .12s ease;
   }
+  .trow.is-active .trow__sw{ box-shadow:0 0 0 2px #fff, 0 0 0 4px var(--luzern); }
   .trow__name{
     font-size:12.5px; line-height:1.25; flex:1 1 auto;
     color:var(--ink);
   }
+  .trow.is-active .trow__name{ font-weight:600; color:var(--luzern); }
   .trow__n{
     font-family:"IBM Plex Mono", monospace;
     font-size:12.5px; font-weight:500;
     color:var(--ink2);
     font-variant-numeric:tabular-nums;
   }
+  .trow.is-active .trow__n{ color:var(--luzern); font-weight:600; }
 
   .foot{
     padding:12px 20px 16px;
@@ -250,7 +272,14 @@
   </div>
 
   <div id="typesWrap" class="types hidden">
-    <div class="types__title">Nach Typ</div>
+    <div class="types__title">
+      <span>Nach Typ</span>
+      <button id="resetTypes" class="types__reset hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Alle anzeigen
+      </button>
+    </div>
+    <p class="types__hint">Tippe einen Typ an, um zu filtern.</p>
     <div id="typeList"></div>
   </div>
 
@@ -438,20 +467,16 @@ async function loadData(){
       feats.push(f);
     }
     const clean = { type: "FeatureCollection", features: feats };
+    ALL = feats;
+    activeType = null;
     map.getSource("bins").setData(clean);
 
-    // fit to data
-    if (feats.length) {
-      const b = new maplibregl.LngLatBounds();
-      feats.forEach(f => b.extend(f.geometry.coordinates));
-      const narrow = window.matchMedia("(max-width:560px)").matches;
-      const pad = narrow
-        ? { top: 20, bottom: 20, left: 20, right: 20 }
-        : { top: 60, bottom: 60, left: 350, right: 60 };
-      map.fitBounds(b, { padding: pad, maxZoom: 15, duration: 900 });
-    }
+    fitTo(feats, 900);
+    buildTypeList(feats);
+    animateCount(feats.length);
+    $("resetTypes").classList.add("hidden");
+    $("typesWrap").classList.remove("hidden");
 
-    renderPanel(feats);
     $("skeleton").classList.add("hidden");
     $("statusDot").className = "dot is-done";
     $("statusText").textContent = "Live · aktuell";
@@ -464,19 +489,35 @@ async function loadData(){
   }
 }
 
-function renderPanel(feats){
-  // animated count-up (Swiss number formatting)
-  const target = feats.length;
+let ALL = [];
+let activeType = null;
+let countRAF = 0;
+
+function animateCount(target){
   const el = $("count");
-  const t0 = performance.now(), dur = 900;
+  cancelAnimationFrame(countRAF);
+  const start = parseInt((el.textContent || "0").replace(/[^0-9]/g, "")) || 0;
+  const t0 = performance.now(), dur = 600;
   (function tick(now){
     const k = Math.min(1, (now - t0) / dur);
-    const eased = 1 - Math.pow(1 - k, 3);
-    el.textContent = Math.round(target * eased).toLocaleString("de-CH");
-    if (k < 1) requestAnimationFrame(tick);
+    const e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(start + (target - start) * e).toLocaleString("de-CH");
+    if (k < 1) countRAF = requestAnimationFrame(tick);
   })(t0);
+}
 
-  // group by type
+function fitTo(feats, duration){
+  if (!feats.length) return;
+  const b = new maplibregl.LngLatBounds();
+  feats.forEach(f => b.extend(f.geometry.coordinates));
+  const narrow = window.matchMedia("(max-width:560px)").matches;
+  const pad = narrow
+    ? { top: 20, bottom: 20, left: 20, right: 20 }
+    : { top: 60, bottom: 60, left: 350, right: 60 };
+  map.fitBounds(b, { padding: pad, maxZoom: 16, duration: duration ?? 700 });
+}
+
+function buildTypeList(feats){
   const groups = new Map();
   for (const f of feats) {
     const key = f.properties.TYP_TEXT || "Unbekannt";
@@ -484,12 +525,40 @@ function renderPanel(feats){
   }
   const rows = [...groups.entries()].sort((a, b) => b[1] - a[1]);
   $("typeList").innerHTML = rows.map(([name, n]) =>
-    `<div class="trow"><span class="trow__sw"></span>` +
-    `<span class="trow__name">${name}</span>` +
-    `<span class="trow__n">${n.toLocaleString("de-CH")}</span></div>`
+    `<div class="trow" role="button" tabindex="0" data-type="${name.replace(/"/g, "&quot;")}">` +
+      `<span class="trow__sw"></span>` +
+      `<span class="trow__name">${name}</span>` +
+      `<span class="trow__n">${n.toLocaleString("de-CH")}</span>` +
+    `</div>`
   ).join("");
-  $("typesWrap").classList.remove("hidden");
 }
+
+function applyFilter(type){
+  activeType = type;
+  const feats = type
+    ? ALL.filter(f => (f.properties.TYP_TEXT || "Unbekannt") === type)
+    : ALL;
+  map.getSource("bins").setData({ type: "FeatureCollection", features: feats });
+  animateCount(feats.length);
+  fitTo(feats);
+  document.querySelectorAll(".trow").forEach(r =>
+    r.classList.toggle("is-active", r.dataset.type === type));
+  $("resetTypes").classList.toggle("hidden", !type);
+  // on phones, tuck the panel away so the filtered map is visible
+  if (type && window.matchMedia("(max-width:560px)").matches) setCollapsed(true);
+}
+
+function onRowActivate(e){
+  const row = e.target.closest(".trow");
+  if (!row) return;
+  const t = row.dataset.type;
+  applyFilter(activeType === t ? null : t);
+}
+$("typeList").addEventListener("click", onRowActivate);
+$("typeList").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowActivate(e); }
+});
+$("resetTypes").addEventListener("click", () => applyFilter(null));
 
 $("retry").addEventListener("click", loadData);
 
