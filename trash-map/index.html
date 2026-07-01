@@ -49,9 +49,27 @@
     overscroll-behavior:contain;
   }
   .panel__head{
-    padding:18px 20px 16px;
+    position:relative;
+    padding:18px 52px 16px 20px;
     border-bottom:1px solid var(--line);
   }
+  .panel__toggle{
+    position:absolute; top:14px; right:14px;
+    width:30px; height:30px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); background:#fff; color:var(--ink2);
+    cursor:pointer; padding:0;
+  }
+  .panel__toggle:hover{ color:var(--ink); border-color:#CFD8E3; }
+  .panel__toggle svg{ width:16px; height:16px; transition:transform .2s ease; }
+  .panel.is-collapsed .panel__toggle svg{ transform:rotate(180deg); }
+  .panel.is-collapsed .panel__head{ border-bottom:0; }
+  .panel.is-collapsed .sub,
+  .panel.is-collapsed .count,
+  .panel.is-collapsed #typesWrap,
+  .panel.is-collapsed #skeleton,
+  .panel.is-collapsed #error,
+  .panel.is-collapsed .foot{ display:none !important; }
   .eyebrow{
     font-family:"IBM Plex Mono", monospace;
     font-size:10.5px;
@@ -218,6 +236,9 @@
 
 <aside class="panel" aria-label="Abfallkübel Übersicht">
   <div class="panel__head">
+    <button class="panel__toggle" id="panelToggle" aria-label="Übersicht ein-/ausklappen" aria-expanded="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+    </button>
     <div class="eyebrow"><span class="dot is-live" id="statusDot"></span><span id="statusText">OGD · Stadt Luzern</span></div>
     <h1>Abfallkübel</h1>
     <p class="sub">Öffentliche Abfalleimer im Stadtgebiet Luzern — live aus dem WFS-Dienst.</p>
@@ -423,7 +444,11 @@ async function loadData(){
     if (feats.length) {
       const b = new maplibregl.LngLatBounds();
       feats.forEach(f => b.extend(f.geometry.coordinates));
-      map.fitBounds(b, { padding: { top: 60, bottom: 60, left: 350, right: 60 }, maxZoom: 15, duration: 900 });
+      const narrow = window.matchMedia("(max-width:560px)").matches;
+      const pad = narrow
+        ? { top: 20, bottom: 20, left: 20, right: 20 }
+        : { top: 60, bottom: 60, left: 350, right: 60 };
+      map.fitBounds(b, { padding: pad, maxZoom: 15, duration: 900 });
     }
 
     renderPanel(feats);
@@ -467,6 +492,16 @@ function renderPanel(feats){
 }
 
 $("retry").addEventListener("click", loadData);
+
+/* collapse toggle — start collapsed on phones so the map stays visible */
+const panel = document.querySelector(".panel");
+const toggle = $("panelToggle");
+function setCollapsed(state){
+  panel.classList.toggle("is-collapsed", state);
+  toggle.setAttribute("aria-expanded", String(!state));
+}
+toggle.addEventListener("click", () => setCollapsed(!panel.classList.contains("is-collapsed")));
+if (window.matchMedia("(max-width:560px)").matches) setCollapsed(true);
 </script>
 </body>
 </html>
