@@ -45,7 +45,7 @@
     min-height: 96px; overflow-wrap: anywhere; white-space: pre-wrap;
     color: var(--packed); font-weight: 700;
   }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 30px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 30px; align-items: center; }
   button {
     font: 500 14px "Space Grotesk", system-ui, sans-serif;
     padding: 9px 16px; border-radius: var(--radius); cursor: pointer;
@@ -54,6 +54,14 @@
   button.ghost { background: transparent; color: var(--ink); }
   button:disabled { opacity: .4; cursor: progress; }
   button:focus-visible, textarea:focus-visible { outline: 2px solid var(--packed); outline-offset: 2px; }
+  .crypto-row { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center; margin: 0 0 14px; }
+  .crypto-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .crypto-row input[type="password"], .crypto-row input[type="text"] {
+    background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 7px 10px; font: inherit; width: 220px;
+  }
+  .crypto-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--packed); }
+  .crypto-row[hidden] { display: none; }
  
   /* the ledger: one cell per byte in, filled cells are bytes that survived */
   .ledger { margin: 26px 0 30px; }
@@ -88,6 +96,11 @@
  
   <p class="eyebrow">Text in</p>
   <textarea id="input" spellcheck="false">https://www.example.com/catalog/items?category=espresso-machines&sort=price_desc&page=3&utm_source=newsletter&utm_campaign=spring</textarea>
+  <div class="crypto-row">
+    <label><input type="checkbox" id="encrypt"> Encrypt (AES-256-GCM)</label>
+    <input type="password" id="password" placeholder="Password" hidden autocomplete="off">
+    <label id="carryLabel" hidden><input type="checkbox" id="carryPassword"> Include password in link (convenience, less secure)</label>
+  </div>
   <div class="row">
     <button id="pack">Pack</button>
     <button id="copy" class="ghost">Copy hash</button>
@@ -116,45 +129,65 @@
  
   <p class="eyebrow">Unpack</p>
   <textarea id="pinput" spellcheck="false" placeholder="Paste a packed string (with or without the leading #)"></textarea>
+  <div class="crypto-row">
+    <input type="password" id="ppassword" placeholder="Password" hidden autocomplete="off">
+  </div>
   <div class="row"><button id="unpack">Unpack</button></div>
   <div class="out" id="restored" style="color: var(--ink); font-weight: 400"></div>
   <p class="note" id="pnote"></p>
 </main>
  
 <script type="module">
-import { packWithStats, unpack, ready, loadError } from './v2/urlpack.js';
- 
+import { packWithStats, unpack, isEncrypted, joinHash, splitHash, ready, loadError } from './v2/urlpack.js';
+
 const $ = (id) => document.getElementById(id);
 let last = '';
- 
+
 function ledger(inBytes, outBytes) {
   const total = Math.min(inBytes, 400);
   const on = Math.round((outBytes / Math.max(inBytes, 1)) * total);
   $('cells').innerHTML = Array.from({ length: total },
     (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('');
 }
- 
+
+$('encrypt').addEventListener('change', () => {
+  const on = $('encrypt').checked;
+  $('password').hidden = !on;
+  $('carryLabel').hidden = !on;
+  if (!on) { $('password').value = ''; $('carryPassword').checked = false; }
+});
+
 $('pack').addEventListener('click', async () => {
   const text = $('input').value;
   if (!text) return;
+  const encrypt = $('encrypt').checked;
+  const password = $('password').value;
+  if (encrypt && !password) {
+    $('note').className = 'note err';
+    $('note').textContent = 'Enter a password, or uncheck Encrypt.';
+    return;
+  }
   $('pack').disabled = true;
   $('note').className = 'note';
   $('note').textContent = 'Packing…';
   try {
-    const s = await packWithStats(text);
-    last = s.packed;
-    $('output').textContent = s.packed;
+    const s = await packWithStats(text, encrypt ? { password } : {});
+    const carry = encrypt && $('carryPassword').checked;
+    last = carry ? joinHash(s.packed, password) : s.packed;
+    $('output').textContent = last;
     $('ratio').textContent = Math.round(s.ratio * 100) + '%';
     $('bin').textContent = s.inputBytes;
     $('bout').textContent = s.payloadBytes;
     $('chars').textContent = s.outputChars;
-    $('codec').textContent = s.codec;
+    $('codec').textContent = s.encrypted ? s.codec + ' + aes-256-gcm' : s.codec;
     $('dict').textContent = s.dictionary ? 'url v1' : 'off';
     ledger(s.inputBytes, s.payloadBytes);
     $('note').innerHTML = s.brotliError
       ? `<span style="color:#b3261e">Brotli did not load (${s.brotliError}) — this is deflate.</span>`
-      : `<b>Round-trips clean.</b> ${s.ms.toFixed(1)} ms via ${s.codec}.`;
-    $('pinput').value = s.packed;
+      : `<b>Round-trips clean.</b> ${s.ms.toFixed(1)} ms via ${s.codec}${s.encrypted ? ', encrypted' : ''}.`;
+    $('pinput').value = last;
+    $('ppassword').hidden = true;
+    $('ppassword').value = '';
   } catch (err) {
     $('note').className = 'note err';
     $('note').textContent = err.message;
@@ -162,32 +195,46 @@ $('pack').addEventListener('click', async () => {
     $('pack').disabled = false;
   }
 });
- 
+
 $('copy').addEventListener('click', async () => {
   if (!last) return;
   await navigator.clipboard.writeText('#' + last);
   $('note').className = 'note';
   $('note').innerHTML = '<b>Copied</b> with the leading #.';
 });
- 
+
 $('load').addEventListener('click', () => { if (last) location.hash = last; });
- 
-$('unpack').addEventListener('click', async () => {
+
+async function tryUnpack() {
+  const { packed, password: carriedPassword } = splitHash($('pinput').value.trim().replace(/^#/, ''));
   $('pnote').className = 'note';
   try {
-    $('restored').textContent = await unpack($('pinput').value);
+    const needsPassword = isEncrypted(packed);
+    $('ppassword').hidden = !needsPassword;
+    const password = carriedPassword ?? $('ppassword').value;
+    if (needsPassword && carriedPassword) $('ppassword').value = carriedPassword;
+    if (needsPassword && !password) {
+      $('restored').textContent = '';
+      $('pnote').className = 'note err';
+      $('pnote').textContent = 'This payload is encrypted — enter the password.';
+      return;
+    }
+    $('restored').textContent = await unpack(packed, needsPassword ? { password } : {});
     $('pnote').textContent = '';
   } catch (err) {
     $('restored').textContent = '';
     $('pnote').className = 'note err';
     $('pnote').textContent = err.message;
   }
-});
- 
+}
+
+$('unpack').addEventListener('click', tryUnpack);
+$('ppassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryUnpack(); });
+
 // Anything already in the hash gets restored on load.
 if (location.hash.length > 1) {
   $('pinput').value = location.hash.slice(1);
-  $('unpack').click();
+  tryUnpack();
 }
 ready().then(
   () => { $('note').textContent = 'Brotli ready.'; },

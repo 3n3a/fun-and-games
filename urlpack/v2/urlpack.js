@@ -6,7 +6,7 @@
  *   const s = await pack('https://例え.jp/path?q=ü&x=1');   // -> "Nl9c..." (no % escapes)
  *   const original = await unpack(s);
  *
- * Pipeline:  text -> UTF-8 -> URL dictionary -> Brotli(q11) -> header byte -> base85
+ * Pipeline:  text -> UTF-8 -> URL dictionary -> Brotli(q11) -> [AES-256-GCM] -> header byte -> base85
  *
  * Brotli at quality 11 is the strongest general-purpose lossless codec available
  * in a browser, and its built-in 120 KB static dictionary is full of web text
@@ -15,6 +15,19 @@
  *
  * Every candidate encoding is tried and the smallest wins, so the output is
  * never larger than raw + 1 byte.
+ *
+ * Encryption is optional (pass `password`) and uses only what SubtleCrypto
+ * exposes natively, no third-party crypto library:
+ *   - AES-256-GCM, the strongest authenticated cipher every https-served
+ *     browser implements, with a fresh random salt and IV per pack.
+ *   - PBKDF2-HMAC-SHA256 at 600,000 iterations (OWASP's 2023 minimum) to turn
+ *     a password into that key.
+ * SubtleCrypto only runs in a secure context (https or localhost), which is
+ * the "natively, in an https context" this was asked for.
+ *
+ * A password can optionally ride along in the same fragment, split off with
+ * `^` (see joinHash/splitHash) — that's a convenience for links you send to
+ * yourself, not a security boundary: anyone with the full link can decrypt.
  */
 
 import { substitute, restore, DICT_VERSION } from './urldict.js';
@@ -227,21 +240,70 @@ const deflate = (b) => streamThrough(b, new CompressionStream('deflate-raw'));
 const inflate = (b) => streamThrough(b, new DecompressionStream('deflate-raw'));
 
 /* ------------------------------------------------------------------ *
- * 4. Public API
+ * 4. Encryption (optional, native SubtleCrypto — AES-256-GCM + PBKDF2)
  * ------------------------------------------------------------------ */
 
 /**
- * Compress text into a URL-fragment-safe string.
- *
- * @param {string} text      any Unicode text (URLs, JSON, prose, emoji, CJK…)
- * @param {object} [options]
- * @param {number} [options.quality=11]   Brotli quality, 0–11
- * @param {string} [options.alphabet]     defaults to BASE85
- * @param {boolean} [options.dictionary=true] try the URL phrase dictionary
- * @returns {Promise<string>}
+ * Marks an encrypted frame. dict and codec nibbles are each kept below 8
+ * (see the guard in packBytes below) so a legitimate header byte can never
+ * reach 0x80 — that's what makes this value unambiguous as "not a header,
+ * this is ciphertext" without needing a separate wrapper byte.
  */
-export async function pack(text, options = {}) {
-  const { quality = 11, alphabet = BASE85, dictionary = true } = options;
+const ENC_MARKER = 0x80;
+const PBKDF2_ITERATIONS = 600_000; // OWASP 2023 minimum for PBKDF2-HMAC-SHA256
+const SALT_BYTES = 16;
+const IV_BYTES = 12; // recommended nonce size for AES-GCM
+
+async function deriveAesKey(password, salt, usage) {
+  const baseKey = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey'],
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    [usage],
+  );
+}
+
+/** Encrypt an already-framed (header + body) buffer. Random salt + IV each call. */
+async function encryptFrame(framed, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+  const key = await deriveAesKey(password, salt, 'encrypt');
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, framed));
+  const out = new Uint8Array(1 + SALT_BYTES + IV_BYTES + ciphertext.length);
+  out[0] = ENC_MARKER;
+  out.set(salt, 1);
+  out.set(iv, 1 + SALT_BYTES);
+  out.set(ciphertext, 1 + SALT_BYTES + IV_BYTES);
+  return out;
+}
+
+/** Reverse of encryptFrame(). Returns the original framed (header + body) buffer. */
+async function decryptFrame(framed, password) {
+  const salt = framed.subarray(1, 1 + SALT_BYTES);
+  const iv = framed.subarray(1 + SALT_BYTES, 1 + SALT_BYTES + IV_BYTES);
+  const ciphertext = framed.subarray(1 + SALT_BYTES + IV_BYTES);
+  const key = await deriveAesKey(password, salt, 'decrypt');
+  try {
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext));
+  } catch {
+    throw new Error('wrong password, or corrupted payload');
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 5. Public API
+ * ------------------------------------------------------------------ */
+
+/**
+ * Compress text down to a framed (header + body) buffer. Internal — pack()
+ * base85-encodes this, packWithStats() also wants it pre-encryption.
+ */
+async function packBytes(text, options = {}) {
+  const { quality = 11, dictionary = true } = options;
   const raw = new TextEncoder().encode(text);
 
   // Two source variants: as typed, and with URL phrases tokenised. The
@@ -271,21 +333,17 @@ export async function pack(text, options = {}) {
     throw new Error('no compressor available: ' + (brotliError?.message ?? 'unknown'));
   }
 
+  const header = (best.dict << 4) | best.fmt;
+  if (header >= ENC_MARKER) throw new Error('header byte collides with the encryption marker');
+
   const framed = new Uint8Array(best.data.length + 1);
-  framed[0] = (best.dict << 4) | best.fmt;
+  framed[0] = header;
   framed.set(best.data, 1);
-  return base85Encode(framed, alphabet);
+  return framed;
 }
 
-/**
- * Reverse of pack(). Throws on malformed input.
- * @param {string} packed
- * @param {object} [options]
- * @returns {Promise<string>}
- */
-export async function unpack(packed, options = {}) {
-  const { alphabet = BASE85 } = options;
-  const framed = base85Decode(packed.trim().replace(/^#/, ''), alphabet);
+/** Reverse of packBytes(): decompress + un-substitute a framed buffer back to text. */
+async function decodeFramed(framed) {
   if (framed.length < 1) throw new Error('empty payload');
   const body = framed.subarray(1);
   let bytes;
@@ -301,37 +359,111 @@ export async function unpack(packed, options = {}) {
   return new TextDecoder().decode(bytes);
 }
 
+/**
+ * Compress text into a URL-fragment-safe string.
+ *
+ * @param {string} text      any Unicode text (URLs, JSON, prose, emoji, CJK…)
+ * @param {object} [options]
+ * @param {number} [options.quality=11]   Brotli quality, 0–11
+ * @param {string} [options.alphabet]     defaults to BASE85
+ * @param {boolean} [options.dictionary=true] try the URL phrase dictionary
+ * @param {string} [options.password]     optional — encrypts with AES-256-GCM
+ * @returns {Promise<string>}
+ */
+export async function pack(text, options = {}) {
+  const { alphabet = BASE85, password, ...rest } = options;
+  const framed = await packBytes(text, rest);
+  const finalBytes = password ? await encryptFrame(framed, password) : framed;
+  return base85Encode(finalBytes, alphabet);
+}
+
+/**
+ * Reverse of pack(). Throws on malformed input, and throws (without a
+ * password) on anything packed with one.
+ * @param {string} packed
+ * @param {object} [options]
+ * @param {string} [options.password] required if the payload was encrypted
+ * @returns {Promise<string>}
+ */
+export async function unpack(packed, options = {}) {
+  const { alphabet = BASE85, password } = options;
+  let framed = base85Decode(packed.trim().replace(/^#/, ''), alphabet);
+  if (framed.length < 1) throw new Error('empty payload');
+  if (framed[0] === ENC_MARKER) {
+    if (!password) throw new Error('password required: this payload is encrypted');
+    framed = await decryptFrame(framed, password);
+  }
+  return decodeFramed(framed);
+}
+
+/** True if a packed string is encrypted, without needing the password. */
+export function isEncrypted(packed, alphabet = BASE85) {
+  const framed = base85Decode(packed.trim().replace(/^#/, ''), alphabet);
+  return framed.length > 0 && framed[0] === ENC_MARKER;
+}
+
 /** pack() plus size accounting, for tuning and UI. */
-export async function packWithStats(text, options) {
+export async function packWithStats(text, options = {}) {
+  const { alphabet = BASE85, password, ...rest } = options;
   const t0 = (globalThis.performance ?? Date).now();
-  const packed = await pack(text, options);
+  const framed = await packBytes(text, rest);
+  const finalBytes = password ? await encryptFrame(framed, password) : framed;
+  const packed = base85Encode(finalBytes, alphabet);
   const inputBytes = new TextEncoder().encode(text).length;
   const codecs = ['stored', 'brotli', 'deflate'];
-  const framed = base85Decode(packed, options?.alphabet ?? BASE85);
   return {
     packed,
     codec: codecs[framed[0] & 0x0f] ?? 'unknown',
     dictionary: (framed[0] >> 4) !== 0,
+    encrypted: Boolean(password),
     inputBytes,
-    payloadBytes: framed.length,
+    payloadBytes: finalBytes.length,
     outputChars: packed.length,
-    ratio: inputBytes ? framed.length / inputBytes : 1,
+    ratio: inputBytes ? finalBytes.length / inputBytes : 1,
     ms: (globalThis.performance ?? Date).now() - t0,
     brotliError: brotliError?.message ?? null,
   };
 }
 
-/** Write the packed text into location.hash. */
-export async function writeHash(text, options) {
-  const packed = await pack(text, options);
-  location.hash = packed;
+/**
+ * The character joining a packed payload to an optional along-for-the-ride
+ * password in a URL fragment: `#<packed>^<password>`. Not in BASE85 or
+ * BASE64URL, so it can never be mistaken for payload data.
+ */
+export const PASSWORD_SEPARATOR = '^';
+
+/** Join a packed string with a password for the hash, percent-encoding the password. */
+export function joinHash(packed, password) {
+  return password ? packed + PASSWORD_SEPARATOR + encodeURIComponent(password) : packed;
+}
+
+/** Split a hash fragment back into { packed, password }. password is null if absent. */
+export function splitHash(hash) {
+  const i = hash.indexOf(PASSWORD_SEPARATOR);
+  if (i === -1) return { packed: hash, password: null };
+  return { packed: hash.slice(0, i), password: decodeURIComponent(hash.slice(i + 1)) };
+}
+
+/**
+ * Write the packed text into location.hash.
+ * @param {object} [options]
+ * @param {boolean} [options.carryPassword=false] also embed the password in
+ *   the hash (after PASSWORD_SEPARATOR), so the link alone decrypts. Only
+ *   meaningful with options.password set — a convenience, not a secret.
+ */
+export async function writeHash(text, options = {}) {
+  const { carryPassword = false, ...rest } = options;
+  const packed = await pack(text, rest);
+  location.hash = carryPassword ? joinHash(packed, rest.password) : packed;
   return packed;
 }
 
 /** Read and unpack location.hash. Returns null when the hash is empty. */
-export async function readHash(options) {
-  const h = location.hash.slice(1);
-  return h ? unpack(h, options) : null;
+export async function readHash(options = {}) {
+  const raw = location.hash.slice(1);
+  if (!raw) return null;
+  const { packed, password } = splitHash(raw);
+  return unpack(packed, { ...options, password: options.password ?? password });
 }
 
 export const _internals = { FMT, deflate, inflate };
