@@ -6,7 +6,7 @@
  *   const s = await pack('https://例え.jp/path?q=ü&x=1');   // -> "Nl9c..." (no % escapes)
  *   const original = await unpack(s);
  *
- * Pipeline:  text -> UTF-8 -> Brotli(q11, custom window) -> 1 header byte -> base85
+ * Pipeline:  text -> UTF-8 -> URL dictionary -> Brotli(q11) -> header byte -> base85
  *
  * Brotli at quality 11 is the strongest general-purpose lossless codec available
  * in a browser, and its built-in 120 KB static dictionary is full of web text
@@ -16,6 +16,8 @@
  * Every candidate encoding is tried and the smallest wins, so the output is
  * never larger than raw + 1 byte.
  */
+
+import { substitute, restore, DICT_VERSION } from './urldict.js';
 
 /* ------------------------------------------------------------------ *
  * 1. Alphabet
@@ -134,41 +136,67 @@ function block(str, off, count, write, table, out, p) {
  * 3. Compression back ends
  * ------------------------------------------------------------------ */
 
+/**
+ * Header byte: high nibble = dictionary version (0 = none), low nibble = codec.
+ * Old links keep decoding because dictionary 0 is what they were written with.
+ */
 const FMT = { RAW: 0, BROTLI: 1, DEFLATE: 2 };
+const CODEC_MASK = 0x0f;
 
 /**
- * Where to load Brotli from. Any ESM CDN that serves brotli-wasm works;
- * swap this for a self-hosted copy in production so the page has no third
- * party dependency at runtime.
+ * Where to load Brotli from.
+ *
+ * This points at the wasm-bindgen glue INSIDE the package, not at the package
+ * root, and hands init() an explicit .wasm URL. Importing "brotli-wasm" bare
+ * from an ESM CDN lets the CDN pick the export condition: if it resolves the
+ * "browser" condition it serves pkg.bundler, whose glue does
+ * `import * as wasm from './brotli_wasm_bg.wasm'` — a bundler-only construct
+ * that no browser can execute. The import then rejects and the whole codec
+ * silently disappears. Pinning the path removes the guesswork.
+ *
+ * Self-host both files in production; a CDN outage otherwise downgrades you
+ * to deflate without warning.
  */
-export const BROTLI_URL = 'https://esm.sh/brotli-wasm@3.0.1';
+export const BROTLI = {
+  js: 'https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/pkg.web/brotli_wasm.js',
+  wasm: 'https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/pkg.web/brotli_wasm_bg.wasm',
+};
 
 let brotliPromise = null;
+let brotliError = null;
+
+/** Whatever stopped Brotli from loading, or null. */
+export function loadError() { return brotliError; }
 
 /** Load and initialise the wasm module. Safe to call repeatedly. */
-export function ready(url = BROTLI_URL) {
+export function ready(urls = BROTLI) {
   if (!brotliPromise) {
     brotliPromise = (async () => {
-      const mod = await import(/* @vite-ignore */ url);
-      // brotli-wasm ships a few entry shapes depending on build target.
-      const viaDefault = mod.default ? await mod.default : null;
-      if (viaDefault && typeof viaDefault.compress === 'function') return viaDefault;
-      if (typeof mod.compress === 'function') {
-        if (typeof mod.default === 'function') await mod.default(); // wasm-bindgen init
+      const mod = await import(/* @vite-ignore */ urls.js);
+      if (typeof mod.default === 'function') {
+        await mod.default(urls.wasm);           // wasm-bindgen init, explicit binary
+        if (typeof mod.compress !== 'function') throw new Error('no compress export');
         return mod;
       }
+      const viaDefault = mod.default ? await mod.default : null;  // package-root shape
+      if (viaDefault && typeof viaDefault.compress === 'function') return viaDefault;
       throw new Error('unrecognised brotli module shape');
     })().catch((err) => {
       brotliPromise = null;
+      brotliError = err;
+      console.warn('[urlpack] Brotli unavailable, falling back to deflate:', err);
       throw err;
     });
   }
   return brotliPromise;
 }
 
-async function brotliCompress(bytes, quality, lgwin) {
+async function brotliCompress(bytes, quality) {
   const brotli = await ready();
-  return new Uint8Array(brotli.compress(bytes, { quality, lgwin }));
+  // The only option this build accepts is `quality`. Anything else (lgwin,
+  // lgblock, large_window) is accepted and silently ignored by the serde
+  // deserialiser, so passing it just misleads you.
+  return new Uint8Array(brotli.compress(bytes, { quality }));
 }
 
 async function brotliDecompress(bytes) {
@@ -208,32 +236,43 @@ const inflate = (b) => streamThrough(b, new DecompressionStream('deflate-raw'));
  * @param {string} text      any Unicode text (URLs, JSON, prose, emoji, CJK…)
  * @param {object} [options]
  * @param {number} [options.quality=11]   Brotli quality, 0–11
- * @param {number} [options.lgwin=24]     Brotli window, log2 bytes, 10–24
  * @param {string} [options.alphabet]     defaults to BASE85
+ * @param {boolean} [options.dictionary=true] try the URL phrase dictionary
  * @returns {Promise<string>}
  */
 export async function pack(text, options = {}) {
-  const { quality = 11, lgwin = 24, alphabet = BASE85 } = options;
+  const { quality = 11, alphabet = BASE85, dictionary = true } = options;
   const raw = new TextEncoder().encode(text);
 
-  let best = { fmt: FMT.RAW, data: raw };
-  const consider = (fmt, data) => {
-    if (data && data.length < best.data.length) best = { fmt, data };
+  // Two source variants: as typed, and with URL phrases tokenised. The
+  // dictionary usually wins on short URLs and is a wash on long documents,
+  // where Brotli finds the same redundancy on its own — so try both rather
+  // than assume.
+  const variants = [{ dict: 0, data: raw }];
+  if (dictionary) {
+    const sub = substitute(raw);
+    if (sub.length < raw.length) variants.push({ dict: DICT_VERSION, data: sub });
+  }
+
+  let best = { dict: 0, fmt: FMT.RAW, data: raw };
+  const consider = (dict, fmt, data) => {
+    if (data && data.length < best.data.length) best = { dict, fmt, data };
   };
 
-  const [br, df] = await Promise.all([
-    brotliCompress(raw, quality, lgwin).catch(() => null),
-    deflate(raw).catch(() => null),
-  ]);
-  consider(FMT.BROTLI, br);
-  consider(FMT.DEFLATE, df);
+  const results = await Promise.all(variants.flatMap((v) => [
+    brotliCompress(v.data, quality).then((d) => [v.dict, FMT.BROTLI, d], () => null),
+    deflate(v.data).then((d) => [v.dict, FMT.DEFLATE, d], () => null),
+  ]));
 
-  if (br === null && df === null && raw.length > 64) {
-    throw new Error('no compressor available (failed to load ' + BROTLI_URL + ')');
+  for (const v of variants) consider(v.dict, FMT.RAW, v.data);
+  for (const r of results) if (r) consider(r[0], r[1], r[2]);
+
+  if (results.every((r) => r === null) && raw.length > 64) {
+    throw new Error('no compressor available: ' + (brotliError?.message ?? 'unknown'));
   }
 
   const framed = new Uint8Array(best.data.length + 1);
-  framed[0] = best.fmt;
+  framed[0] = (best.dict << 4) | best.fmt;
   framed.set(best.data, 1);
   return base85Encode(framed, alphabet);
 }
@@ -249,14 +288,17 @@ export async function unpack(packed, options = {}) {
   const framed = base85Decode(packed.trim().replace(/^#/, ''), alphabet);
   if (framed.length < 1) throw new Error('empty payload');
   const body = framed.subarray(1);
-  let raw;
-  switch (framed[0]) {
-    case FMT.RAW: raw = body; break;
-    case FMT.BROTLI: raw = await brotliDecompress(body); break;
-    case FMT.DEFLATE: raw = await inflate(body); break;
-    default: throw new Error('unknown format byte: ' + framed[0]);
+  let bytes;
+  switch (framed[0] & CODEC_MASK) {
+    case FMT.RAW: bytes = body; break;
+    case FMT.BROTLI: bytes = await brotliDecompress(body); break;
+    case FMT.DEFLATE: bytes = await inflate(body); break;
+    default: throw new Error('unknown codec: ' + (framed[0] & CODEC_MASK));
   }
-  return new TextDecoder().decode(raw);
+  const dict = framed[0] >> 4;
+  if (dict === DICT_VERSION) bytes = restore(bytes);
+  else if (dict !== 0) throw new Error('packed with dictionary v' + dict + ', this build has v' + DICT_VERSION);
+  return new TextDecoder().decode(bytes);
 }
 
 /** pack() plus size accounting, for tuning and UI. */
@@ -268,12 +310,14 @@ export async function packWithStats(text, options) {
   const framed = base85Decode(packed, options?.alphabet ?? BASE85);
   return {
     packed,
-    codec: codecs[framed[0]] ?? 'unknown',
+    codec: codecs[framed[0] & 0x0f] ?? 'unknown',
+    dictionary: (framed[0] >> 4) !== 0,
     inputBytes,
     payloadBytes: framed.length,
     outputChars: packed.length,
     ratio: inputBytes ? framed.length / inputBytes : 1,
     ms: (globalThis.performance ?? Date).now() - t0,
+    brotliError: brotliError?.message ?? null,
   };
 }
 

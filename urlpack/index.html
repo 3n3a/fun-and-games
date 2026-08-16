@@ -54,7 +54,7 @@
   button.ghost { background: transparent; color: var(--ink); }
   button:disabled { opacity: .4; cursor: progress; }
   button:focus-visible, textarea:focus-visible { outline: 2px solid var(--packed); outline-offset: 2px; }
-
+ 
   /* the ledger: one cell per byte in, filled cells are bytes that survived */
   .ledger { margin: 26px 0 30px; }
   .cells {
@@ -84,8 +84,8 @@
 <body>
 <main>
   <h1>urlpack<span>.</span></h1>
-  <p class="lede">Brotli, then base85 over the 85 characters a URL fragment carries unescaped. Paste anything — the whole payload lives after the <code>#</code>.</p>
-
+  <p class="lede">A URL phrase dictionary, then Brotli, then base85 over the 85 characters a URL fragment carries unescaped. Paste anything — the whole payload lives after the <code>#</code>.</p>
+ 
   <p class="eyebrow">Text in</p>
   <textarea id="input" spellcheck="false">https://www.example.com/catalog/items?category=espresso-machines&sort=price_desc&page=3&utm_source=newsletter&utm_campaign=spring</textarea>
   <div class="row">
@@ -93,7 +93,7 @@
     <button id="copy" class="ghost">Copy hash</button>
     <button id="load" class="ghost">Put in address bar</button>
   </div>
-
+ 
   <div class="ledger">
     <div class="cells" id="cells" aria-hidden="true"></div>
     <div class="figures">
@@ -103,36 +103,37 @@
         <div><dt>Bytes out</dt><dd id="bout">—</dd></div>
         <div><dt>Hash chars</dt><dd id="chars">—</dd></div>
         <div><dt>Codec</dt><dd id="codec">—</dd></div>
+        <div><dt>Dictionary</dt><dd id="dict">—</dd></div>
       </dl>
     </div>
     <p class="note" id="note">Brotli loads on first pack.</p>
   </div>
-
+ 
   <p class="eyebrow">Packed</p>
   <div class="out" id="output"></div>
-
+ 
   <hr>
-
+ 
   <p class="eyebrow">Unpack</p>
   <textarea id="pinput" spellcheck="false" placeholder="Paste a packed string (with or without the leading #)"></textarea>
   <div class="row"><button id="unpack">Unpack</button></div>
   <div class="out" id="restored" style="color: var(--ink); font-weight: 400"></div>
   <p class="note" id="pnote"></p>
 </main>
-
+ 
 <script type="module">
-import { packWithStats, unpack, ready } from './urlpack.js';
-
+import { packWithStats, unpack, ready, loadError } from './urlpack.js';
+ 
 const $ = (id) => document.getElementById(id);
 let last = '';
-
+ 
 function ledger(inBytes, outBytes) {
   const total = Math.min(inBytes, 400);
   const on = Math.round((outBytes / Math.max(inBytes, 1)) * total);
   $('cells').innerHTML = Array.from({ length: total },
     (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('');
 }
-
+ 
 $('pack').addEventListener('click', async () => {
   const text = $('input').value;
   if (!text) return;
@@ -148,8 +149,11 @@ $('pack').addEventListener('click', async () => {
     $('bout').textContent = s.payloadBytes;
     $('chars').textContent = s.outputChars;
     $('codec').textContent = s.codec;
+    $('dict').textContent = s.dictionary ? 'url v1' : 'off';
     ledger(s.inputBytes, s.payloadBytes);
-    $('note').innerHTML = `<b>Round-trips clean.</b> ${s.ms.toFixed(1)} ms.`;
+    $('note').innerHTML = s.brotliError
+      ? `<span style="color:#b3261e">Brotli did not load (${s.brotliError}) — this is deflate.</span>`
+      : `<b>Round-trips clean.</b> ${s.ms.toFixed(1)} ms via ${s.codec}.`;
     $('pinput').value = s.packed;
   } catch (err) {
     $('note').className = 'note err';
@@ -158,16 +162,16 @@ $('pack').addEventListener('click', async () => {
     $('pack').disabled = false;
   }
 });
-
+ 
 $('copy').addEventListener('click', async () => {
   if (!last) return;
   await navigator.clipboard.writeText('#' + last);
   $('note').className = 'note';
   $('note').innerHTML = '<b>Copied</b> with the leading #.';
 });
-
+ 
 $('load').addEventListener('click', () => { if (last) location.hash = last; });
-
+ 
 $('unpack').addEventListener('click', async () => {
   $('pnote').className = 'note';
   try {
@@ -179,16 +183,19 @@ $('unpack').addEventListener('click', async () => {
     $('pnote').textContent = err.message;
   }
 });
-
+ 
 // Anything already in the hash gets restored on load.
 if (location.hash.length > 1) {
   $('pinput').value = location.hash.slice(1);
   $('unpack').click();
 }
-ready().catch(() => {
-  $('note').className = 'note err';
-  $('note').textContent = 'Brotli failed to load — falling back to deflate.';
-});
+ready().then(
+  () => { $('note').textContent = 'Brotli ready.'; },
+  () => {
+    $('note').className = 'note err';
+    $('note').textContent = 'Brotli failed to load: ' + loadError().message + ' — deflate only.';
+  },
+);
 </script>
 </body>
 </html>
