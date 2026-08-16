@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>urlpack — text into a hash fragment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #14202b;
+    --slate: #6d8090;
+    --paper: #e9eef1;
+    --card: #fdfefe;
+    --line: #c3d0d8;
+    --packed: #c31c6b;
+    --ok: #00807b;
+    --radius: 3px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 64px;
+    background: var(--paper); color: var(--ink);
+    font: 400 15px/1.55 "JetBrains Mono", ui-monospace, monospace;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 {
+    font: 700 clamp(30px, 7vw, 46px)/1.05 "Space Grotesk", system-ui, sans-serif;
+    letter-spacing: -0.02em; margin: 0 0 6px;
+  }
+  h1 span { color: var(--packed); }
+  .lede { color: var(--slate); margin: 0 0 28px; max-width: 52ch; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--slate); margin: 0 0 8px;
+  }
+  textarea, .out {
+    width: 100%; background: var(--card); color: var(--ink);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 14px; font: inherit; resize: vertical;
+  }
+  textarea { min-height: 96px; }
+  .out {
+    min-height: 96px; overflow-wrap: anywhere; white-space: pre-wrap;
+    color: var(--packed); font-weight: 700;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 30px; }
+  button {
+    font: 500 14px "Space Grotesk", system-ui, sans-serif;
+    padding: 9px 16px; border-radius: var(--radius); cursor: pointer;
+    border: 1px solid var(--ink); background: var(--ink); color: var(--card);
+  }
+  button.ghost { background: transparent; color: var(--ink); }
+  button:disabled { opacity: .4; cursor: progress; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--packed); outline-offset: 2px; }
+
+  /* the ledger: one cell per byte in, filled cells are bytes that survived */
+  .ledger { margin: 26px 0 30px; }
+  .cells {
+    display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 14px;
+    min-height: 10px;
+  }
+  .cells i {
+    width: 6px; height: 12px; border-radius: 1px;
+    background: var(--line); transition: background .18s linear;
+  }
+  .cells i.on { background: var(--packed); }
+  .figures { display: flex; align-items: baseline; gap: 22px; flex-wrap: wrap; }
+  .ratio {
+    font: 700 clamp(38px, 10vw, 58px)/1 "Space Grotesk", system-ui, sans-serif;
+    letter-spacing: -0.03em;
+  }
+  .figures dl { display: flex; gap: 22px; margin: 0; flex-wrap: wrap; }
+  .figures dt { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--slate); }
+  .figures dd { margin: 2px 0 0; font-weight: 700; }
+  .note { color: var(--slate); font-size: 13px; }
+  .note b { color: var(--ok); }
+  .note.err { color: #b3261e; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 34px 0; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>urlpack<span>.</span></h1>
+  <p class="lede">Brotli, then base85 over the 85 characters a URL fragment carries unescaped. Paste anything — the whole payload lives after the <code>#</code>.</p>
+
+  <p class="eyebrow">Text in</p>
+  <textarea id="input" spellcheck="false">https://www.example.com/catalog/items?category=espresso-machines&sort=price_desc&page=3&utm_source=newsletter&utm_campaign=spring</textarea>
+  <div class="row">
+    <button id="pack">Pack</button>
+    <button id="copy" class="ghost">Copy hash</button>
+    <button id="load" class="ghost">Put in address bar</button>
+  </div>
+
+  <div class="ledger">
+    <div class="cells" id="cells" aria-hidden="true"></div>
+    <div class="figures">
+      <div class="ratio" id="ratio">—</div>
+      <dl>
+        <div><dt>Bytes in</dt><dd id="bin">—</dd></div>
+        <div><dt>Bytes out</dt><dd id="bout">—</dd></div>
+        <div><dt>Hash chars</dt><dd id="chars">—</dd></div>
+        <div><dt>Codec</dt><dd id="codec">—</dd></div>
+      </dl>
+    </div>
+    <p class="note" id="note">Brotli loads on first pack.</p>
+  </div>
+
+  <p class="eyebrow">Packed</p>
+  <div class="out" id="output"></div>
+
+  <hr>
+
+  <p class="eyebrow">Unpack</p>
+  <textarea id="pinput" spellcheck="false" placeholder="Paste a packed string (with or without the leading #)"></textarea>
+  <div class="row"><button id="unpack">Unpack</button></div>
+  <div class="out" id="restored" style="color: var(--ink); font-weight: 400"></div>
+  <p class="note" id="pnote"></p>
+</main>
+
+<script type="module">
+import { packWithStats, unpack, ready } from './urlpack.js';
+
+const $ = (id) => document.getElementById(id);
+let last = '';
+
+function ledger(inBytes, outBytes) {
+  const total = Math.min(inBytes, 400);
+  const on = Math.round((outBytes / Math.max(inBytes, 1)) * total);
+  $('cells').innerHTML = Array.from({ length: total },
+    (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('');
+}
+
+$('pack').addEventListener('click', async () => {
+  const text = $('input').value;
+  if (!text) return;
+  $('pack').disabled = true;
+  $('note').className = 'note';
+  $('note').textContent = 'Packing…';
+  try {
+    const s = await packWithStats(text);
+    last = s.packed;
+    $('output').textContent = s.packed;
+    $('ratio').textContent = Math.round(s.ratio * 100) + '%';
+    $('bin').textContent = s.inputBytes;
+    $('bout').textContent = s.payloadBytes;
+    $('chars').textContent = s.outputChars;
+    $('codec').textContent = s.codec;
+    ledger(s.inputBytes, s.payloadBytes);
+    $('note').innerHTML = `<b>Round-trips clean.</b> ${s.ms.toFixed(1)} ms.`;
+    $('pinput').value = s.packed;
+  } catch (err) {
+    $('note').className = 'note err';
+    $('note').textContent = err.message;
+  } finally {
+    $('pack').disabled = false;
+  }
+});
+
+$('copy').addEventListener('click', async () => {
+  if (!last) return;
+  await navigator.clipboard.writeText('#' + last);
+  $('note').className = 'note';
+  $('note').innerHTML = '<b>Copied</b> with the leading #.';
+});
+
+$('load').addEventListener('click', () => { if (last) location.hash = last; });
+
+$('unpack').addEventListener('click', async () => {
+  $('pnote').className = 'note';
+  try {
+    $('restored').textContent = await unpack($('pinput').value);
+    $('pnote').textContent = '';
+  } catch (err) {
+    $('restored').textContent = '';
+    $('pnote').className = 'note err';
+    $('pnote').textContent = err.message;
+  }
+});
+
+// Anything already in the hash gets restored on load.
+if (location.hash.length > 1) {
+  $('pinput').value = location.hash.slice(1);
+  $('unpack').click();
+}
+ready().catch(() => {
+  $('note').className = 'note err';
+  $('note').textContent = 'Brotli failed to load — falling back to deflate.';
+});
+</script>
+</body>
+</html>
