@@ -62,6 +62,7 @@
   }
   .crypto-row input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--packed); }
   .crypto-row[hidden] { display: none; }
+  .crypto-row button { padding: 7px 12px; font-size: 13px; }
  
   /* the ledger: one cell per byte in, filled cells are bytes that survived */
   .ledger { margin: 26px 0 30px; }
@@ -99,6 +100,8 @@
   <div class="crypto-row">
     <label><input type="checkbox" id="encrypt"> Encrypt (AES-256-GCM)</label>
     <input type="password" id="password" placeholder="Password" hidden autocomplete="off">
+    <button type="button" id="genPassword" class="ghost" hidden>Generate</button>
+    <button type="button" id="showPassword" class="ghost" hidden>Show</button>
     <label id="carryLabel" hidden><input type="checkbox" id="carryPassword"> Include password in link (convenience, less secure)</label>
   </div>
   <div class="row">
@@ -139,6 +142,7 @@
  
 <script type="module">
 import { packWithStats, unpack, isEncrypted, joinHash, splitHash, ready, loadError } from './v2/urlpack.js';
+import { generatePassword } from './v2/genpassword.js';
 
 const $ = (id) => document.getElementById(id);
 let last = '';
@@ -153,8 +157,22 @@ function ledger(inBytes, outBytes) {
 $('encrypt').addEventListener('change', () => {
   const on = $('encrypt').checked;
   $('password').hidden = !on;
+  $('genPassword').hidden = !on;
+  $('showPassword').hidden = !on;
   $('carryLabel').hidden = !on;
   if (!on) { $('password').value = ''; $('carryPassword').checked = false; }
+});
+
+$('genPassword').addEventListener('click', () => {
+  $('password').value = generatePassword({ length: 20 });
+  $('password').type = 'text';
+  $('showPassword').textContent = 'Hide';
+});
+
+$('showPassword').addEventListener('click', () => {
+  const showing = $('password').type === 'text';
+  $('password').type = showing ? 'password' : 'text';
+  $('showPassword').textContent = showing ? 'Show' : 'Hide';
 });
 
 $('pack').addEventListener('click', async () => {
