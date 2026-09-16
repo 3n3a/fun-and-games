@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shrimp Quartet</title>
+
+<style>
+    html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: black;
+    }
+
+    canvas {
+        display: block;
+    }
+</style>
+</head>
+
+<body>
+
+<script type="module">
+
+import * as THREE from
+    "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+
+// ============================================================
+// SCENE
+// ============================================================
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+
+// Camera
+const camera = new THREE.PerspectiveCamera(
+    35,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+);
+
+camera.position.set(0, 0, 18);
+camera.lookAt(0, 0, 0);
+
+
+// Renderer
+const renderer = new THREE.WebGLRenderer({
+    antialias: false
+});
+
+renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+);
+
+renderer.setPixelRatio(1);
+
+document.body.appendChild(renderer.domElement);
+
+
+// ============================================================
+// LIGHTING
+// ============================================================
+
+const keyLight = new THREE.DirectionalLight(
+    0xffd4a0,
+    4
+);
+
+keyLight.position.set(-4, 7, 8);
+scene.add(keyLight);
+
+
+const fillLight = new THREE.DirectionalLight(
+    0xff4d00,
+    2
+);
+
+fillLight.position.set(5, -3, 5);
+scene.add(fillLight);
+
+
+const rimLight = new THREE.PointLight(
+    0xff2200,
+    25,
+    30
+);
+
+rimLight.position.set(0, 3, 5);
+scene.add(rimLight);
+
+
+// ============================================================
+// MATERIALS
+// ============================================================
+
+const orange = new THREE.MeshStandardMaterial({
+    color: 0xff5a16,
+    roughness: 0.8,
+    flatShading: true
+});
+
+const lightOrange = new THREE.MeshStandardMaterial({
+    color: 0xffa13a,
+    roughness: 0.75,
+    flatShading: true
+});
+
+const darkOrange = new THREE.MeshStandardMaterial({
+    color: 0x8e2408,
+    roughness: 1,
+    flatShading: true
+});
+
+const red = new THREE.MeshStandardMaterial({
+    color: 0xff2412,
+    roughness: 0.8,
+    flatShading: true
+});
+
+const black = new THREE.MeshBasicMaterial({
+    color: 0x050000
+});
+
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+function sphere(scale, material) {
+
+    const geometry = new THREE.IcosahedronGeometry(
+        1,
+        1
+    );
+
+    const mesh = new THREE.Mesh(
+        geometry,
+        material
+    );
+
+    mesh.scale.copy(scale);
+
+    return mesh;
+}
+
+
+function cylinderBetween(
+    a,
+    b,
+    radius,
+    material
+) {
+
+    const direction = new THREE.Vector3()
+        .subVectors(b, a);
+
+    const length = direction.length();
+
+    const geometry =
+        new THREE.CylinderGeometry(
+            radius,
+            radius * 0.65,
+            length,
+            5,
+            1
+        );
+
+    const mesh = new THREE.Mesh(
+        geometry,
+        material
+    );
+
+    mesh.position
+        .copy(a)
+        .add(b)
+        .multiplyScalar(0.5);
+
+    mesh.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        direction.normalize()
+    );
+
+    return mesh;
+}
+
+
+// ============================================================
+// SHRIMP
+// ============================================================
+
+function createShrimp() {
+
+    const shrimp = new THREE.Group();
+
+    // --------------------------------------------------------
+    // BODY
+    // --------------------------------------------------------
+
+    const body = new THREE.Group();
+
+    shrimp.add(body);
+
+
+    // Large main body
+    const torso = sphere(
+        new THREE.Vector3(1.25, 0.55, 0.65),
+        orange
+    );
+
+    torso.rotation.z = -0.35;
+
+    body.add(torso);
+
+
+    // Head
+    const head = sphere(
+        new THREE.Vector3(0.72, 0.62, 0.63),
+        lightOrange
+    );
+
+    head.position.x = 1.0;
+    head.position.y = 0.1;
+
+    body.add(head);
+
+
+    // --------------------------------------------------------
+    // EYES
+    // --------------------------------------------------------
+
+    const eye1 = sphere(
+        new THREE.Vector3(0.16, 0.16, 0.16),
+        black
+    );
+
+    eye1.position.set(
+        1.42,
+        0.40,
+        0.42
+    );
+
+    body.add(eye1);
+
+
+    const eye2 = sphere(
+        new THREE.Vector3(0.16, 0.16, 0.16),
+        black
+    );
+
+    eye2.position.set(
+        1.42,
+        0.40,
+        -0.42
+    );
+
+    body.add(eye2);
+
+
+    // --------------------------------------------------------
+    // ABDOMEN / TAIL SEGMENTS
+    // --------------------------------------------------------
+
+    const segments = [];
+
+    for (let i = 0; i < 5; i++) {
+
+        const segment = sphere(
+            new THREE.Vector3(
+                0.75 - i * 0.08,
+                0.48 - i * 0.03,
+                0.55 - i * 0.03
+            ),
+            orange
+        );
+
+        segment.position.set(
+            -0.45 - i * 0.65,
+            0.08 + Math.sin(i * 0.7) * 0.08,
+            0
+        );
+
+        segment.rotation.z =
+            0.25 + i * 0.08;
+
+        body.add(segment);
+
+        segments.push(segment);
+    }
+
+
+    // --------------------------------------------------------
+    // TAIL FAN
+    // --------------------------------------------------------
+
+    const tail = new THREE.Group();
+
+    tail.position.set(-3.1, 0.1, 0);
+
+    body.add(tail);
+
+
+    for (let i = 0; i < 3; i++) {
+
+        const fin = sphere(
+            new THREE.Vector3(
+                0.65,
+                0.16,
+                0.42
+            ),
+            red
+        );
+
+        fin.position.set(
+            -i * 0.25,
+            (i - 1) * 0.32,
+            0
+        );
+
+        fin.rotation.z =
+            (i - 1) * 0.45;
+
+        tail.add(fin);
+    }
+
+
+    // --------------------------------------------------------
+    // LEGS
+    // --------------------------------------------------------
+
+    const legs = [];
+
+    for (let i = 0; i < 5; i++) {
+
+        const side = i % 2 === 0 ? 1 : -1;
+
+        const leg = new THREE.Group();
+
+        leg.position.set(
+            0.5 - i * 0.45,
+            -0.25,
+            side * 0.35
+        );
+
+        const upper = cylinderBetween(
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(
+                -0.15,
+                -0.45,
+                side * 0.45
+            ),
+            0.07,
+            darkOrange
+        );
+
+        leg.add(upper);
+
+
+        const lower = cylinderBetween(
+            new THREE.Vector3(
+                -0.15,
+                -0.45,
+                side * 0.45
+            ),
+            new THREE.Vector3(
+                0.15,
+                -0.85,
+                side * 0.8
+            ),
+            0.045,
+            orange
+        );
+
+        leg.add(lower);
+
+        body.add(leg);
+
+        legs.push(leg);
+    }
+
+
+    // --------------------------------------------------------
+    // ARMS
+    // --------------------------------------------------------
+
+    const arms = [];
+
+    for (let side of [-1, 1]) {
+
+        const arm = new THREE.Group();
+
+        arm.position.set(
+            0.85,
+            0.0,
+            side * 0.45
+        );
+
+        const upper = cylinderBetween(
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(
+                0.35,
+                0.2,
+                side * 0.55
+            ),
+            0.1,
+            orange
+        );
+
+        arm.add(upper);
+
+
+        const hand = sphere(
+            new THREE.Vector3(
+                0.2,
+                0.16,
+                0.2
+            ),
+            red
+        );
+
+        hand.position.set(
+            0.45,
+            0.2,
+            side * 0.6
+        );
+
+        arm.add(hand);
+
+        body.add(arm);
+
+        arms.push(arm);
+    }
+
+
+    // --------------------------------------------------------
+    // ANTENNAE
+    // --------------------------------------------------------
+
+    const antennae = [];
+
+    for (let side of [-1, 1]) {
+
+        const antenna = new THREE.Group();
+
+        antenna.position.set(
+            1.35,
+            0.45,
+            side * 0.25
+        );
+
+
+        const points = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0.3, 0.7, side * 0.15),
+            new THREE.Vector3(0.8, 1.35, side * 0.25),
+            new THREE.Vector3(1.1, 2.2, side * 0.35)
+        ];
+
+
+        for (let i = 0; i < points.length - 1; i++) {
+
+            antenna.add(
+                cylinderBetween(
+                    points[i],
+                    points[i + 1],
+                    0.025,
+                    lightOrange
+                )
+            );
+        }
+
+        body.add(antenna);
+
+        antennae.push(antenna);
+    }
+
+
+    // Animation data
+    shrimp.userData = {
+        body,
+        tail,
+        segments,
+        legs,
+        arms,
+        antennae
+    };
+
+    return shrimp;
+}
+
+
+// ============================================================
+// CREATE FOUR SHRIMP
+// ============================================================
+
+const shrimps = [];
+
+const positions = [
+    [-5.0, -0.8, 0],
+    [-1.7,  0.7, 0],
+    [ 1.8,  0.7, 0],
+    [ 5.0, -0.6, 0]
+];
+
+for (let i = 0; i < 4; i++) {
+
+    const shrimp = createShrimp();
+
+    shrimp.position.set(
+        positions[i][0],
+        positions[i][1],
+        positions[i][2]
+    );
+
+    // Face slightly different directions
+    shrimp.rotation.z =
+        (i % 2 === 0 ? 1 : -1) * 0.15;
+
+    // Different sizes
+    const scale =
+        0.85 + Math.random() * 0.15;
+
+    shrimp.scale.setScalar(scale);
+
+    scene.add(shrimp);
+
+    shrimps.push(shrimp);
+}
+
+
+// ============================================================
+// ANIMATION
+// ============================================================
+
+const clock = new THREE.Clock();
+
+function animate() {
+
+    const time = clock.getElapsedTime();
+
+
+    shrimps.forEach((shrimp, index) => {
+
+        const data = shrimp.userData;
+
+        // Each shrimp has a slightly different phase
+        const phase =
+            time * 2.2 + index * 1.15;
+
+
+        // ----------------------------------------------------
+        // WHOLE SHRIMP MOVEMENT
+        // ----------------------------------------------------
+
+        shrimp.position.y =
+            positions[index][1] +
+            Math.sin(phase) * 0.25;
+
+        shrimp.rotation.z =
+            Math.sin(phase * 0.7) * 0.15;
+
+
+        // Little forward/backward movement
+        shrimp.position.x =
+            positions[index][0] +
+            Math.sin(phase * 0.5) * 0.15;
+
+
+        // ----------------------------------------------------
+        // BODY
+        // ----------------------------------------------------
+
+        data.body.rotation.z =
+            Math.sin(phase) * 0.12;
+
+
+        // ----------------------------------------------------
+        // TAIL
+        // ----------------------------------------------------
+
+        data.tail.rotation.z =
+            Math.sin(phase * 1.5) * 0.4;
+
+
+        // ----------------------------------------------------
+        // ABDOMEN
+        // ----------------------------------------------------
+
+        data.segments.forEach((segment, i) => {
+
+            segment.rotation.z =
+                0.25 +
+                i * 0.08 +
+                Math.sin(
+                    phase * 1.4 + i * 0.5
+                ) * 0.15;
+
+        });
+
+
+        // ----------------------------------------------------
+        // LEGS
+        // ----------------------------------------------------
+
+        data.legs.forEach((leg, i) => {
+
+            leg.rotation.z =
+                Math.sin(
+                    phase * 2 +
+                    i * 0.8
+                ) * 0.35;
+
+        });
+
+
+        // ----------------------------------------------------
+        // ARMS
+        // ----------------------------------------------------
+
+        data.arms.forEach((arm, i) => {
+
+            arm.rotation.x =
+                Math.sin(
+                    phase * 1.7 +
+                    i * Math.PI
+                ) * 0.45;
+
+            arm.rotation.z =
+                Math.cos(
+                    phase * 1.2 +
+                    i
+                ) * 0.25;
+
+        });
+
+
+        // ----------------------------------------------------
+        // ANTENNAE
+        // ----------------------------------------------------
+
+        data.antennae.forEach((antenna, i) => {
+
+            antenna.rotation.z =
+                Math.sin(
+                    phase * 0.8 +
+                    i * 2
+                ) * 0.35;
+
+            antenna.rotation.x =
+                Math.cos(
+                    phase +
+                    i
+                ) * 0.15;
+
+        });
+
+    });
+
+
+    renderer.render(
+        scene,
+        camera
+    );
+}
+
+
+renderer.setAnimationLoop(animate);
+
+
+// ============================================================
+// RESIZE
+// ============================================================
+
+window.addEventListener(
+    "resize",
+    () => {
+
+        camera.aspect =
+            window.innerWidth /
+            window.innerHeight;
+
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(
+            window.innerWidth,
+            window.innerHeight
+        );
+
+    }
+);
+
+</script>
+
+</body>
+</html>
