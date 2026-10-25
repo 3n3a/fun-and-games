@@ -1,0 +1,7 @@
+ChicagoKare.woff2: "Chicago Kare" Regular, version 1.001
+Designer: Duane King (http://kingduane.com), after Susan Kare's Chicago.
+Extracted unmodified from music.apple.com/includes/ipod/web-music-ipod.esm.js,
+whose embedded copy declares this license in its name table.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://openfontlicense.org/open-font-license-official-text/

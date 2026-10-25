@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <title>Virtual iPod</title>
+  <link rel="stylesheet" href="ipod.css">
+</head>
+<body>
+  <div class="ipod-host" id="ipod"></div>
+  <p class="hint">
+    Drag in a circle on the wheel to scroll. Click the center to select and MENU to go back.
+    Hold MENU to toggle the backlight. Hold center on About for 5 seconds to play Brick.<br>
+    Keyboard: <kbd>↑</kbd><kbd>↓</kbd> scroll · <kbd>→</kbd>/<kbd>Enter</kbd> select ·
+    <kbd>←</kbd>/<kbd>Esc</kbd> menu · <kbd>Space</kbd> play/pause
+  </p>
+  <footer class="footer">
+    <p>iPod is a trademark of Apple Inc. This is an unofficial parody, not affiliated with or endorsed by Apple.</p>
+    <a href="https://3n3a.ch/impressum">Impressum</a>
+  </footer>
+  <script>
+    // iOS Safari ignores user-scalable=no, so block pinch-zoom here (gesture* events are WebKit-only).
+    for (const t of ["gesturestart", "gesturechange", "gestureend"])
+      document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
+    document.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 1 || (e.scale ?? 1) !== 1) e.preventDefault();
+    }, { passive: false });
+    // Backstop for double-tap zoom: swallow a second tap that lands within 300 ms.
+    // Safe because the iPod listens to pointer events, which still fire; only the synthetic click is dropped.
+    let lastTouchEnd = 0;
+    document.addEventListener("touchend", (e) => {
+      const now = e.timeStamp;
+      if (now - lastTouchEnd < 300) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+  </script>
+  <script src="data.js"></script>
+  <script src="ipod.js"></script>
+</body>
+</html>
